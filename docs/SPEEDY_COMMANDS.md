@@ -13,8 +13,8 @@ speedy <command> [arguments]
 | `speedy help` | List commands | — |
 | `speedy version` | speedy, SpeedyOS and kernel versions | — |
 | `speedy info` | System overview: mode (live/installed), kernel, CPU, memory, disk, package count | — |
-| `speedy update` | Full system upgrade | `sudo pacman -Syu` |
-| `speedy install <pkg...>` | Install packages (skips ones already installed) | `sudo pacman -S --needed` |
+| `speedy update` | Full system upgrade, then AUR packages and Flatpak apps if there are any | `sudo pacman -Syu`, `yay -Sua`, `flatpak update` |
+| `speedy install <pkg...>` | Install packages (skips ones already installed). Names not in the Arch repositories are looked up in the AUR; after a warning and confirmation they are built with yay | `sudo pacman -S --needed`, `yay -S --aur --needed` |
 | `speedy remove <pkg...>` | Explain, ask for confirmation, then remove packages and dependencies nothing else needs | `sudo pacman -Rs` |
 | `speedy search <term...>` | Search the repositories | `pacman -Ss` |
 | `speedy clean` | Show how much the cache would shrink, ask, then keep the 2 newest versions of each package and drop uninstalled ones | `sudo paccache -rk2`, `sudo paccache -ruk0` |
@@ -22,11 +22,23 @@ speedy <command> [arguments]
 | `speedy apps` | Suggested applications by category | — |
 | `speedy welcome` | Open the SpeedyOS Welcome Center | `speedyos-welcome` |
 | `speedy installer` | Start Calamares (live session only) | `speedyos-installer` |
+| `speedy drivers [install]` | Detect graphics hardware and show (or install) the recommended drivers. NVIDIA GTX 16xx/RTX and newer: `nvidia-open`; GTX 900/1000 era: the 580xx driver from the AUR | `lspci`, `sudo pacman -S --needed` |
+| `speedy snapshots` | List Btrfs snapshots | `sudo snapper -c root list` |
+| `speedy snapshot [text]` | Take a snapshot now | `sudo snapper -c root create` |
+| `speedy undo <number>` | Put system files back as they were in a snapshot (takes a safety snapshot first; asks) | `sudo snapper -c root undochange N..0` |
 
 | `speedy dance [seconds]` | Speedy, in glasses, dances in rainbow colors until you press a key (or for the given seconds) | — |
 | `speedy tricks` | Other things Speedy can do (bark, sit, fetch, treat, ...) | — |
 
-Aliases: `upgrade` = `update`, `uninstall` = `remove`.
+Aliases: `upgrade` = `update`, `uninstall` = `remove`, `rollback` = `undo`.
+
+## Update notifications
+
+`speedy-update-check.timer` (a systemd user timer, enabled for everyone by
+the installer) runs `checkupdates` 15 minutes after login and every 6 hours.
+When updates are waiting, a notification offers **Update now**, which runs
+`speedy update` in Konsole. Turn it off with
+`systemctl --user disable --now speedy-update-check.timer`.
 
 There are also a few unlisted commands, and the Welcome Center has secrets
 of its own. Spoilers are in the source.

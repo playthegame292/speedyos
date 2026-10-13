@@ -1,0 +1,9 @@
+[Unit]
+Description=Check for SpeedyOS updates
+After=graphical-session.target
+ConditionPathExists=!/run/archiso
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/speedy/speedy-update-check
+TimeoutStartSec=4h

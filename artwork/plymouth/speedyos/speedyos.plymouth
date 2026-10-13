@@ -1,0 +1,48 @@
+[Plymouth Theme]
+Name=SpeedyOS
+Description=Speedy's paw prints walking across the boot screen
+ModuleName=two-step
+
+[two-step]
+Font=Noto Sans 12
+TitleFont=Noto Sans Light 30
+MonospaceFont=Noto Sans Mono 12
+ImageDir=/usr/share/plymouth/themes/speedyos
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.78
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.382
+HorizontalAlignment=.5
+VerticalAlignment=.80
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.36
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x1a1816
+BackgroundEndColor=0x1a1816
+ProgressBarBackgroundColor=0x3d352e
+ProgressBarForegroundColor=0xc97d3e
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+
+[shutdown]
+UseEndAnimation=false
+
+[reboot]
+UseEndAnimation=false
+
+[updates]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Installing Updates...
+SubTitle=Do not turn off your computer
+
+[system-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading System...
+SubTitle=Do not turn off your computer

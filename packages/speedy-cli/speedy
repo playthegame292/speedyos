@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-VERSION="0.3.0"
+VERSION="0.4.0"
 
 # ---------------------------------------------------------------- output ---
 
@@ -102,7 +102,7 @@ USAGE
 
 PACKAGES
     update              Full system upgrade (pacman -Syu)
-    install <pkg...>    Install packages from the Arch repositories
+    install <pkg...>    Install packages (Arch repositories, then the AUR)
     remove <pkg...>     Remove packages (asks for confirmation first)
     search <term...>    Search the repositories
     clean               Trim the package cache (keeps 2 versions)
@@ -112,6 +112,10 @@ SYSTEM
     info                System and SpeedyOS information
     doctor              Health check with suggestions
     version             Version information
+    drivers [install]   Recommended graphics drivers for this computer
+    snapshots           List system snapshots (Btrfs)
+    snapshot [text]     Take a snapshot now
+    undo <number>       Put system files back as they were in a snapshot
 
 DESKTOP
     welcome             Open the SpeedyOS Welcome Center
@@ -179,16 +183,33 @@ cmd_update() {
     paw "Updating SpeedyOS (full Arch system upgrade)..."
     show_cmd pacman -Syu
     as_root pacman -Syu || die "Update did not complete (pacman exit code $?)."
+    if (( EUID != 0 )) && command -v yay >/dev/null 2>&1 && [[ -n $(pacman -Qmq 2>/dev/null) ]]; then
+        paw "Updating AUR packages..."
+        show_user_cmd yay -Sua
+        yay -Sua || warning "AUR updates did not complete."
+    fi
+    if command -v flatpak >/dev/null 2>&1 && [[ -n $(flatpak list --app --columns=application 2>/dev/null) ]]; then
+        paw "Updating Flatpak apps..."
+        show_user_cmd flatpak update
+        flatpak update --noninteractive || warning "Flatpak updates did not complete."
+    fi
     success "System is up to date."
 }
 
 cmd_install() {
     check_pacman
     validate_pkgs install "$@"
-    paw "Installing: $*"
-    show_cmd pacman -S --needed "$@"
-    as_root pacman -S --needed -- "$@" || die "Installation did not complete. Try 'speedy update' first if packages were not found."
-    success "Installed: $*"
+    local p repo=() other=()
+    for p in "$@"; do
+        if in_repos "$p"; then repo+=("$p"); else other+=("$p"); fi
+    done
+    if (( ${#repo[@]} )); then
+        paw "Installing: ${repo[*]}"
+        show_cmd pacman -S --needed "${repo[@]}"
+        as_root pacman -S --needed -- "${repo[@]}" || die "Installation did not complete. Try 'speedy update' first if packages were not found."
+        success "Installed: ${repo[*]}"
+    fi
+    (( ${#other[@]} == 0 )) || install_aur "${other[@]}"
 }
 
 cmd_remove() {
@@ -218,6 +239,8 @@ cmd_search() {
     done
     paw "Searching for: $*"
     pacman -Ss -- "$@" || info "No packages found. Repository data may be old: try 'speedy update'."
+    echo
+    info "More software: 'yay -Ss $*' searches the AUR, 'flatpak search $*' searches Flathub."
 }
 
 cmd_doctor() {
@@ -354,6 +377,183 @@ cmd_installer() {
     command -v speedyos-installer >/dev/null 2>&1 || die "Installer launcher not found in this image."
     paw "Starting the SpeedyOS installer..."
     setsid -f speedyos-installer >/dev/null 2>&1
+}
+
+# ------------------------------------------------------------------ AUR ---
+
+# Show a command that runs as the current user (no sudo).
+show_user_cmd() { printf '%s  $ %s%s\n' "$BOLD" "$*" "$NC"; }
+
+# True if pacman can install this name: a package, a group or something a
+# package provides.
+in_repos() { pacman -Sp --noconfirm --print-format '%n' -- "$1" >/dev/null 2>&1; }
+
+# Build and install packages from the AUR with yay, after a clear warning.
+install_aur() {
+    command -v yay >/dev/null 2>&1 \
+        || die "Not in the Arch repositories: $*. (The AUR needs yay; Flatpak apps: flatpak search <name>)"
+    (( EUID != 0 )) || die "AUR packages are built as a normal user. Run speedy without sudo."
+    local p found=() missing=()
+    for p in "$@"; do
+        if yay -Si --aur -- "$p" >/dev/null 2>&1; then found+=("$p"); else missing+=("$p"); fi
+    done
+    (( ${#missing[@]} == 0 )) || error "Not found in the Arch repositories or the AUR: ${missing[*]}"
+    if (( ${#found[@]} == 0 )); then
+        info "Try 'speedy search <word>', or 'flatpak search <word>' for Flathub apps."
+        exit 1
+    fi
+    warning "Not in the Arch repositories, but found in the AUR: ${found[*]}"
+    info "The AUR (Arch User Repository) has packages made by the community. Arch does"
+    info "not check them. yay shows each build script (PKGBUILD) first: read it if you can."
+    confirm "Build and install from the AUR?" || { info "Cancelled."; exit 0; }
+    show_user_cmd yay -S --aur --needed "${found[@]}"
+    yay -S --aur --needed -- "${found[@]}" || die "AUR installation did not complete."
+    success "Installed from the AUR: ${found[*]}"
+    (( ${#missing[@]} == 0 ))
+}
+
+# -------------------------------------------------------------- drivers ---
+
+# Kernel module package(s) for NVIDIA's open driver, matching the kernels
+# that are installed.
+nvidia_open_pkgs() {
+    local kernels
+    mapfile -t kernels < <(pacman -Qq linux linux-lts linux-zen linux-hardened 2>/dev/null)
+    if [[ ${kernels[*]} == linux ]]; then
+        echo nvidia-open
+    elif [[ ${kernels[*]} == linux-lts ]]; then
+        echo nvidia-open-lts
+    else
+        echo nvidia-open-dkms
+        printf '%s-headers\n' "${kernels[@]}"
+    fi
+}
+
+cmd_drivers() {
+    local action=${1:-}
+    [[ -z $action || $action == install ]] || die "Usage: speedy drivers [install]"
+    check_pacman
+    command -v lspci >/dev/null 2>&1 || die "lspci not found (install pciutils)."
+
+    local gpus line code multilib=0 kernels
+    local -a pkgs=() aur=() notes=()
+    mapfile -t gpus < <(lspci -nn 2>/dev/null | grep -E '\[03(00|02|80)\]')
+    (( ${#gpus[@]} )) || die "No graphics hardware found."
+    grep -q '^\[multilib\]' /etc/pacman.conf 2>/dev/null && multilib=1
+    mapfile -t kernels < <(pacman -Qq linux linux-lts linux-zen linux-hardened 2>/dev/null)
+
+    paw "Graphics hardware"
+    for line in "${gpus[@]}"; do
+        printf '    %s\n' "${line#*: }"
+        case $line in
+            *'[10de:'*)  # NVIDIA: the chip name (TU106, GP106, ...) tells the generation.
+                code=$(grep -oE '\b(GF|GK|GM|GP|GV|TU|GA|AD|GB|GH)[0-9]{2,3}' <<<"$line" | head -n1)
+                case $code in
+                    TU*|GA*|AD*|GB*|GH*)
+                        mapfile -t -O "${#pkgs[@]}" pkgs < <(nvidia_open_pkgs)
+                        pkgs+=(nvidia-utils)
+                        (( multilib )) && pkgs+=(lib32-nvidia-utils)
+                        notes+=("NVIDIA ${code}: NVIDIA's open kernel modules from the Arch repositories.") ;;
+                    GM*|GP*|GV*)
+                        aur+=(nvidia-580xx-dkms nvidia-580xx-utils)
+                        (( multilib )) && aur+=(lib32-nvidia-580xx-utils)
+                        pkgs+=(dkms "${kernels[@]/%/-headers}")
+                        notes+=("NVIDIA ${code} (GTX 900/1000 series era): Arch's current NVIDIA driver no longer"
+                                "supports this card. The last driver that does (580xx) is in the AUR.") ;;
+                    GF*|GK*)
+                        pkgs+=(mesa)
+                        notes+=("NVIDIA ${code}: too old for NVIDIA's driver; the open-source nouveau driver (mesa) is used.") ;;
+                    *)
+                        notes+=("NVIDIA card of unknown generation. GTX 16xx/RTX and newer: nvidia-open + nvidia-utils."
+                                "Older cards: see https://wiki.archlinux.org/title/NVIDIA") ;;
+                esac ;;
+            *'[1002:'*)
+                pkgs+=(mesa vulkan-radeon)
+                (( multilib )) && pkgs+=(lib32-mesa lib32-vulkan-radeon)
+                notes+=("AMD: open-source drivers (mesa, Vulkan).") ;;
+            *'[8086:'*)
+                pkgs+=(mesa vulkan-intel intel-media-driver)
+                (( multilib )) && pkgs+=(lib32-mesa lib32-vulkan-intel)
+                notes+=("Intel: open-source drivers (mesa, Vulkan, video decoding).") ;;
+            *'[1af4:'*|*'[1234:'*|*'[1b36:'*|*'[15ad:'*|*'[80ee:'*)
+                pkgs+=(mesa)
+                notes+=("Virtual machine graphics: the open-source drivers (mesa) are all it needs.") ;;
+            *)
+                notes+=("Unknown graphics vendor: the default open-source drivers are used.") ;;
+        esac
+    done
+
+    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | awk 'NF && !seen[$0]++')
+    mapfile -t aur < <(printf '%s\n' "${aur[@]}" | awk 'NF && !seen[$0]++')
+    echo
+    printf '  %s\n' "${notes[@]}"
+    echo
+
+    local p todo=() aur_todo=()
+    for p in "${pkgs[@]}"; do pacman -Qq -- "$p" >/dev/null 2>&1 || todo+=("$p"); done
+    for p in "${aur[@]}"; do pacman -Qq -- "$p" >/dev/null 2>&1 || aur_todo+=("$p"); done
+    if (( ${#todo[@]} + ${#aur_todo[@]} == 0 )); then
+        success "The recommended drivers are already installed."
+        return 0
+    fi
+    (( ${#todo[@]} )) && info "To install from the Arch repositories: ${todo[*]}"
+    (( ${#aur_todo[@]} )) && info "To install from the AUR: ${aur_todo[*]}"
+    if [[ $action != install ]]; then
+        echo
+        paw "Run 'speedy drivers install' to install them."
+        return 0
+    fi
+
+    confirm "Install the recommended drivers?" || { info "Cancelled."; exit 0; }
+    if (( ${#todo[@]} )); then
+        show_cmd pacman -S --needed "${todo[@]}"
+        as_root pacman -S --needed -- "${todo[@]}" || die "Driver installation did not complete."
+    fi
+    (( ${#aur_todo[@]} == 0 )) || install_aur "${aur_todo[@]}"
+    success "Drivers installed. Restart the computer to start using them."
+}
+
+# ------------------------------------------------------------ snapshots ---
+
+have_snapper() {
+    command -v snapper >/dev/null 2>&1 && [[ -f /etc/snapper/configs/root ]] \
+        || die "Snapshots are not set up here. SpeedyOS sets them up when it is installed on Btrfs (the default)."
+}
+
+cmd_snapshots() {
+    have_snapper
+    show_cmd snapper -c root list
+    as_root snapper -c root list
+    echo
+    info "A snapshot is taken before and after every package change."
+    info "To start an older snapshot: choose \"SpeedyOS snapshots\" in the boot menu."
+    info "To put system files back: speedy undo <number>"
+}
+
+cmd_snapshot() {
+    have_snapper
+    local desc=${*:-Manual snapshot} n
+    show_cmd snapper -c root create -d "$desc" -u important=yes --print-number
+    n=$(as_root snapper -c root create -d "$desc" -u important=yes --print-number) \
+        || die "Could not create the snapshot."
+    success "Snapshot #${n} created: ${desc}"
+}
+
+cmd_undo() {
+    have_snapper
+    local n=${1:-} changes before
+    [[ $n =~ ^[1-9][0-9]*$ ]] || die "Usage: speedy undo <snapshot number>  (numbers: speedy snapshots)"
+    changes=$(as_root snapper -c root status "${n}..0" 2>/dev/null) || die "There is no snapshot #${n}."
+    warning "This puts system files back the way they were in snapshot #${n} ($(wc -l <<<"$changes") changed files)."
+    info "Files in /home are not affected. A snapshot of the current state is taken"
+    info "first, so this can be undone as well."
+    confirm "Restore system files from snapshot #${n}?" || { info "Cancelled."; exit 0; }
+    before=$(as_root snapper -c root create -d "Before speedy undo ${n}" -u important=yes --print-number) \
+        || die "Could not create a safety snapshot; nothing was changed."
+    show_cmd snapper -c root undochange "${n}..0"
+    as_root snapper -c root undochange "${n}..0" || die "Restore did not complete (safety snapshot: #${before})."
+    success "System files restored from snapshot #${n}. Restart the computer now."
+    info "Changed your mind? speedy undo ${before}"
 }
 
 # ------------------------------------------------------------- just fun ---
@@ -694,6 +894,10 @@ main() {
         apps)                 cmd_apps ;;
         welcome)              cmd_welcome ;;
         installer)            cmd_installer ;;
+        drivers)              cmd_drivers "$@" ;;
+        snapshots)            cmd_snapshots ;;
+        snapshot)             cmd_snapshot "$@" ;;
+        undo|rollback)        cmd_undo "$@" ;;
         dance|boogie|party)   cmd_dance "$@" ;;
         tricks)               cmd_tricks ;;
         bark|woof)            cmd_bark ;;

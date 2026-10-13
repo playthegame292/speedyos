@@ -56,6 +56,8 @@ speedy apps          # Suggested applications
 speedy welcome       # Open the Welcome Center
 speedy installer     # Start the installer (live session only)
 speedy version       # Version information
+speedy drivers       # Recommended graphics drivers
+speedy snapshots     # System snapshots (Btrfs); speedy undo <n> restores one
 speedy dance         # Very important
 ```
 

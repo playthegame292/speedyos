@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# SpeedyOS update notifier. Run by speedy-update-check.timer (systemd user
+# unit) a few times a day: counts pending updates with checkupdates (which
+# uses a temporary copy of the package databases, so it never does a partial
+# upgrade) and shows a desktop notification with an "Update now" button.
+set -uo pipefail
+
+[[ -d /run/archiso ]] && exit 0                     # not in the live session
+command -v checkupdates >/dev/null 2>&1 || exit 0
+command -v notify-send >/dev/null 2>&1 || exit 0
+
+count=$(checkupdates 2>/dev/null | wc -l)
+(( count > 0 )) || exit 0
+
+if (( count == 1 )); then body="1 update is ready."; else body="${count} updates are ready."; fi
+action=$(timeout 3h notify-send --app-name=SpeedyOS --icon=speedyos \
+    --action=update="Update now" --wait \
+    "SpeedyOS updates" "${body} Fast paws, fresh packages.")
+
+if [[ $action == update ]] && command -v konsole >/dev/null 2>&1; then
+    konsole -e bash -c "speedy update; echo; read -rp 'Press Enter to close...'"
+fi
+exit 0

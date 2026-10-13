@@ -59,12 +59,18 @@ appear after login. That is a VM limitation, not a SpeedyOS problem.
 - [ ] Installer starts from the desktop icon and the Welcome Center
 - [ ] Welcome, Location, Keyboard, Partitions, Users, Summary pages work
 - [ ] Partitions page preselects nothing; the summary lists every change
-- [ ] "Erase disk" install completes without errors
+- [ ] "Erase disk" install completes without errors (default Btrfs; also try ext4)
 - [ ] Log: `/root/.cache/calamares/session.log` in the live VM
 
 ### Installed system (`run-vm.sh installed`)
 
-- [ ] GRUB menu says SpeedyOS and boots
+- [ ] GRUB shows the SpeedyOS theme and boots; Plymouth paw-print splash appears
+- [ ] Btrfs: `speedy snapshots` lists "Fresh SpeedyOS install"; `grub-btrfsd`
+      and `snapper-cleanup.timer` are enabled; "SpeedyOS snapshots" in GRUB
+- [ ] ext4: snapper, snap-pac and grub-btrfs are not installed
+- [ ] `systemctl --user is-enabled speedy-update-check.timer` is `enabled`
+- [ ] `fastfetch` shows the beagle logo and "SpeedyOS"
+- [ ] `speedy drivers` names the virtual GPU
 - [ ] SDDM asks for the user created in the installer (no autologin)
 - [ ] `speedyuser` does not exist; no `/etc/sudoers.d/10-speedyos-live`
 - [ ] `sudo` asks for the user's password

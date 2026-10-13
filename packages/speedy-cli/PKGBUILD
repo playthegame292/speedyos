@@ -1,19 +1,25 @@
 # Maintainer: Seby <seby@speedyos>
 pkgname=speedy-cli
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="SpeedyOS command-line companion (speedy) - friendly wrappers around pacman and systemd"
 arch=('any')
 url="https://github.com/sebytremblay/speedyos"
 license=('MIT')
-depends=('bash' 'pacman' 'systemd' 'coreutils' 'procps-ng' 'util-linux' 'sudo')
+depends=('bash' 'pacman' 'systemd' 'coreutils' 'procps-ng' 'util-linux' 'sudo' 'pciutils' 'pacman-contrib' 'fakeroot' 'libnotify')
 optdepends=(
     'networkmanager: network status in speedy doctor'
-    'pacman-contrib: for paccache in clean command'
+    'yay: install and update AUR packages'
+    'flatpak: update Flatpak apps with speedy update'
+    'snapper: speedy snapshots/snapshot/undo'
 )
-source=("speedy")
-sha256sums=('SKIP')
+source=("speedy" "speedy-update-check" "speedy-update-check.service" "speedy-update-check.timer")
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
     install -Dm755 "$srcdir/speedy" "$pkgdir/usr/bin/speedy"
+    # Update notifications; the installer enables the timer for all users.
+    install -Dm755 "$srcdir/speedy-update-check" "$pkgdir/usr/lib/speedy/speedy-update-check"
+    install -Dm644 "$srcdir/speedy-update-check.service" "$pkgdir/usr/lib/systemd/user/speedy-update-check.service"
+    install -Dm644 "$srcdir/speedy-update-check.timer" "$pkgdir/usr/lib/systemd/user/speedy-update-check.timer"
 }

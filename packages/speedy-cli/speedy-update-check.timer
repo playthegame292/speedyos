@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for SpeedyOS updates a few times a day
+
+[Timer]
+OnStartupSec=15min
+OnUnitActiveSec=6h
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

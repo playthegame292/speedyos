@@ -4,6 +4,35 @@ All notable changes to SpeedyOS are documented here.
 
 ## [Unreleased] — 2026.10 "Beagle Run"
 
+### Snapshots, drivers, AUR, boot theme (2026-10-13)
+- Btrfs is the default file system. The installer sets up snapper (root
+  config, no timeline), snap-pac (snapshots around every pacman run),
+  grub-btrfs (snapshots in the boot menu, read-only boot via overlayfs) and
+  a "Fresh SpeedyOS install" snapshot. Non-Btrfs installs drop these tools.
+- `speedy snapshots`, `speedy snapshot`, `speedy undo <n>`.
+- `speedy drivers [install]`: GPU detection with per-generation NVIDIA
+  advice (nvidia-open for Turing+, AUR 580xx for Maxwell/Pascal/Volta).
+- AUR: `yay-bin` shipped (prebuilt into [speedyos]; paru-bin was skipped,
+  its binary needs libalpm.so.15) plus `base-devel`. `speedy install` falls
+  back to the AUR with a warning; `speedy update` also updates AUR packages
+  and Flatpak apps.
+- Update notifier: `speedy-update-check.timer` (checkupdates + notification
+  with "Update now").
+- Plymouth boot splash (paw prints, two-step engine, works with LUKS
+  prompts) on the live ISO and installed systems; GRUB theme; fastfetch
+  shows a beagle logo and "SpeedyOS".
+
+**Fixed**
+- Btrfs installs did not boot ("premature end of file" in GRUB): Calamares
+  unpacks with `rsync --sparse`, which left the kernel with a trailing hole
+  that GRUB's Btrfs reader cannot handle. finalize-install now writes the
+  kernel in /boot without holes.
+- GRUB defaults (theme, gfxterm, timeout) were never applied because
+  `/etc/default/grub` already exists; `always_use_defaults: true`.
+- Installer showed "ext4" in the file system box while planning Btrfs.
+- GRUB theme was rejected (`terminal-box: ""`); background is cropped, not
+  stretched, on non-16:9 screens. `splash` was passed twice.
+
 ### Try or Install, Speedy's tricks (2026-10-13)
 - Live session opens a full-screen "Try or Install" screen
   (`speedyos-try-install`); the installer's finalize step removes it from

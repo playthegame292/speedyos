@@ -22,7 +22,12 @@ found=0
 for kdir in /usr/lib/modules/*/; do
     [[ -f ${kdir}pkgbase && -f ${kdir}vmlinuz ]] || continue
     pkgbase=$(<"${kdir}pkgbase")
-    install -Dm644 "${kdir}vmlinuz" "/boot/vmlinuz-${pkgbase}"
+    # Calamares copies the system with "rsync --sparse", so a kernel that ends
+    # in zeros has a trailing hole, which GRUB's Btrfs reader cannot handle
+    # ("premature end of file"). Write /boot copies without holes.
+    install -d /boot
+    cp --sparse=never --reflink=never "${kdir}vmlinuz" "/boot/vmlinuz-${pkgbase}"
+    chmod 644 "/boot/vmlinuz-${pkgbase}"
     # Standard Arch preset (the live image ships a reduced one).
     cat >"/etc/mkinitcpio.d/${pkgbase}.preset" <<PRESET
 # mkinitcpio preset file for the '${pkgbase}' package (SpeedyOS)
@@ -74,9 +79,60 @@ chown root:root /etc/shadow /etc/gshadow
 pacman-key --init
 pacman-key --populate archlinux
 
-# 4. The installer is not needed on the installed system.
+# 4. The installer is not needed on the installed system. Snapshot tools are
+#    only useful on Btrfs; remove them before snapper is set up below.
 if pacman -Q calamares >/dev/null 2>&1; then
     pacman -Rns --noconfirm calamares || say "warning: could not remove calamares"
+fi
+root_fs=$(stat -f -c %T /)
+say "root filesystem: ${root_fs}"
+if [[ $root_fs != btrfs ]]; then
+    for pkg in snap-pac grub-btrfs snapper; do
+        if pacman -Q "$pkg" >/dev/null 2>&1; then
+            pacman -Rns --noconfirm "$pkg" || say "warning: could not remove $pkg"
+        fi
+    done
+fi
+
+# 5. Boot splash (the initramfs and GRUB menu are built after this script).
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+    plymouth-set-default-theme speedyos || say "warning: could not select the boot splash"
+fi
+
+# 6. Update notifications for every user (systemd user timer from speedy-cli).
+if [[ -f /usr/lib/systemd/user/speedy-update-check.timer ]]; then
+    systemctl --global enable speedy-update-check.timer
+fi
+
+# 7. Btrfs snapshots: snapper for /, a snapshot before and after every pacman
+#    transaction (snap-pac), and the snapshots listed in the GRUB menu
+#    (grub-btrfs). Calamares already created and mounted @snapshots at
+#    /.snapshots, so the snapper config is written directly instead of
+#    "snapper create-config" (which would try to create .snapshots itself).
+if [[ $root_fs == btrfs ]] && command -v snapper >/dev/null 2>&1; then
+    install -Dm640 /usr/share/snapper/config-templates/default /etc/snapper/configs/root
+    sed -i -e 's/^SUBVOLUME=.*/SUBVOLUME="\/"/' \
+           -e 's/^FSTYPE=.*/FSTYPE="btrfs"/' \
+           -e 's/^TIMELINE_CREATE=.*/TIMELINE_CREATE="no"/' \
+           -e 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="10"/' \
+           -e 's/^NUMBER_LIMIT_IMPORTANT=.*/NUMBER_LIMIT_IMPORTANT="5"/' \
+           /etc/snapper/configs/root
+    sed -i 's/^SNAPPER_CONFIGS=.*/SNAPPER_CONFIGS="root"/' /etc/conf.d/snapper
+    chmod 750 /.snapshots
+    systemctl enable snapper-cleanup.timer
+    if [[ -f /etc/default/grub-btrfs/config ]]; then
+        sed -i 's/^#\?GRUB_BTRFS_SUBMENUNAME=.*/GRUB_BTRFS_SUBMENUNAME="SpeedyOS snapshots"/' \
+            /etc/default/grub-btrfs/config
+        systemctl enable grub-btrfsd.service
+        # Read-only snapshots boot with a temporary writable layer on top.
+        cat >/etc/mkinitcpio.conf.d/speedyos-snapshots.conf <<'CONF'
+# SpeedyOS: boot read-only Btrfs snapshots from the GRUB menu (grub-btrfs).
+[[ " ${HOOKS[*]} " == *" grub-btrfs-overlayfs "* ]] || HOOKS+=(grub-btrfs-overlayfs)
+CONF
+    fi
+    snapper --no-dbus -c root create -d "Fresh SpeedyOS install" -u important=yes \
+        || say "warning: could not create the first snapshot"
+    say "snapshots enabled (snapper, snap-pac, grub-btrfs)"
 fi
 
 say "done"

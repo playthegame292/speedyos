@@ -26,7 +26,7 @@ sudo pacman -S --needed archiso arch-install-scripts squashfs-tools \
 ## Build steps
 
 ```bash
-./scripts/build-packages.sh     # build speedy-* packages into iso/custom-repo
+./scripts/build-packages.sh     # build speedy-* and yay-bin (AUR) into iso/custom-repo
 ./scripts/validate-profile.sh   # fast checks, ~10 s (build-iso.sh runs it too)
 ./scripts/build-iso.sh          # release build (xz), 30-60 min
 ./scripts/build-iso.sh --fast   # development build (zstd), much faster
@@ -60,8 +60,8 @@ unshare --map-auto --map-root-user rm -rf build/work
 | Archiso profile | `iso/archiso-profile/` | Based on Arch's `releng` profile |
 | Package list | `iso/archiso-profile/packages.x86_64` | Official Arch packages + `[speedyos]` |
 | Live overlay | `iso/archiso-profile/airootfs/` | Live user, SDDM autologin, Calamares config |
-| Local repo `[speedyos]` | `iso/custom-repo/` | `calamares`, `speedy-cli`, `speedy-welcome`, `speedy-branding` |
-| Artwork | `artwork/` | Regenerate with `python3 artwork/generate-wallpapers.py` |
+| Local repo `[speedyos]` | `iso/custom-repo/` | `calamares`, `speedy-cli`, `speedy-welcome`, `speedy-branding`, `yay-bin` |
+| Artwork | `artwork/` | Regenerate with `python3 artwork/generate-wallpapers.py`; boot splash and GRUB theme with `python3 artwork/generate-boot-art.py` (needs `grub-mkfont`) |
 
 The profile's `pacman.conf` contains `@SPEEDYOS_REPO@`; `build-iso.sh`
 replaces it with the absolute path of `iso/custom-repo` in a copy under

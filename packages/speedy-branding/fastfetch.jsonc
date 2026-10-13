@@ -1,0 +1,39 @@
+// SpeedyOS default fastfetch layout. Copy it to ~/.config/fastfetch/config.jsonc
+// to make your own.
+{
+    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+    "logo": {
+        "type": "file",
+        "source": "/usr/share/speedyos/fastfetch-logo.txt",
+        "color": { "1": "38;5;172", "2": "38;5;215", "3": "38;5;223" },
+        "padding": { "top": 1, "right": 3 }
+    },
+    "display": {
+        "separator": "  ",
+        "color": { "keys": "38;5;172", "title": "38;5;215" }
+    },
+    "modules": [
+        "title",
+        "separator",
+        {
+            "type": "command",
+            "key": "OS",
+            "text": "[ -r /etc/speedyos-release ] && . /etc/speedyos-release; printf '%s %s \"%s\" (Arch Linux based)' \"${SPEEDYOS_NAME:-SpeedyOS}\" \"${SPEEDYOS_VERSION:-}\" \"${SPEEDYOS_CODENAME:-}\""
+        },
+        "host",
+        "kernel",
+        "uptime",
+        "packages",
+        "shell",
+        "display",
+        "de",
+        "wm",
+        "terminal",
+        "cpu",
+        "gpu",
+        "memory",
+        "disk",
+        "break",
+        "colors"
+    ]
+}

@@ -60,7 +60,9 @@ the Welcome Center, or run `speedy installer` in a terminal.
 4. **Partitions** — pick the disk, then explicitly choose one action.
    Nothing is preselected:
    - *Erase disk*: deletes everything on that disk. Optional encryption
-     (LUKS) and swap size are set here.
+     (LUKS) and swap size are set here. The default file system is
+     **Btrfs**, which gives you automatic snapshots (see below); ext4 and
+     XFS are available too, without snapshots.
    - *Install alongside*: shrinks an existing partition (keep backups!).
    - *Replace a partition*.
    - *Manual partitioning*: you need an EFI system partition mounted at
@@ -75,15 +77,39 @@ the Welcome Center, or run `speedy installer` in a terminal.
 
 ## 4. First boot
 
-GRUB shows *SpeedyOS*, then the login screen. Log in with the account you
-created. The Welcome Center opens (untick *Show at login* to stop that).
+The SpeedyOS boot menu appears, then Speedy's paw prints while the system
+starts, then the login screen. Log in with the account you created. The
+Welcome Center opens (untick *Show at login* to stop that).
 
 First steps:
 
 ```bash
-speedy update        # full system upgrade (sudo pacman -Syu)
+speedy update        # full upgrade: Arch packages, AUR packages, Flatpak apps
+speedy drivers       # recommended graphics drivers (NVIDIA, AMD, Intel)
 speedy doctor        # health check
 ```
+
+When updates are available, a notification offers to install them.
+
+### Snapshots (Btrfs installs)
+
+A snapshot of the system is taken right after installation and before and
+after every package change (`snapper` + `snap-pac`; your home folder is not
+included). If an update breaks something:
+
+- Choose **SpeedyOS snapshots** in the boot menu to start the system as it
+  was at an earlier snapshot (read-only, changes are discarded at shutdown).
+- Or put system files back from a snapshot: `speedy snapshots` lists them,
+  `speedy undo <number>` restores one (it takes a safety snapshot first).
+- `speedy snapshot "before trying X"` takes one by hand.
+
+### More software
+
+`speedy install <name>` installs from the Arch repositories and, when a
+package is only in the [AUR](https://aur.archlinux.org/) (community
+packages, not checked by Arch), offers to build it with `yay` after a
+warning. Flatpak apps from Flathub are available in Discover or with
+`flatpak install`.
 
 SpeedyOS is Arch Linux underneath: everything on the
 [ArchWiki](https://wiki.archlinux.org/) applies.
@@ -95,7 +121,9 @@ removed (`/usr/local/lib/speedyos/finalize-install`): the live user and its
 passwordless `sudo`, automatic login, the root console autologin, the
 archiso initramfs hooks and the installer itself. The kernel is placed in
 `/boot`, a normal initramfs (with fallback) is built, and the pacman keyring
-is initialized.
+is initialized. It also selects the SpeedyOS boot splash, enables the update
+notifier, and on Btrfs sets up snapper, snap-pac and grub-btrfs (on other
+file systems those three packages are removed).
 
 ## Troubleshooting
 

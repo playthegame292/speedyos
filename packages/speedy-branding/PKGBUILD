@@ -3,19 +3,23 @@
 # artwork/generate-wallpapers.py), so this PKGBUILD is built in-tree by
 # scripts/build-packages.sh.
 pkgname=speedy-branding
-pkgver=0.1.0
+pkgver=0.2.2
 pkgrel=1
-pkgdesc="SpeedyOS artwork and KDE Plasma defaults: wallpapers, icons, colors, Konsole theme"
+pkgdesc="SpeedyOS artwork and defaults: wallpapers, icons, colors, Konsole, boot splash, GRUB theme, fastfetch"
 arch=('any')
 url="https://github.com/sebytremblay/speedyos"
 license=('GPL-2.0-or-later' 'CC-BY-SA-4.0')
 depends=('plasma-workspace')
 optdepends=('konsole: SpeedyOS terminal theme'
-            'sddm: SpeedyOS login background')
-backup=('etc/xdg/kdeglobals' 'etc/xdg/konsolerc' 'etc/xdg/kscreenlockerrc' 'etc/xdg/kded5rc' 'etc/sddm.conf.d/10-speedyos.conf')
+            'sddm: SpeedyOS login background'
+            'plymouth: SpeedyOS boot splash'
+            'grub: SpeedyOS boot menu theme'
+            'fastfetch: SpeedyOS logo in fastfetch')
+backup=('etc/xdg/fastfetch/config.jsonc' 'etc/xdg/kdeglobals' 'etc/xdg/konsolerc' 'etc/xdg/kscreenlockerrc' 'etc/xdg/kded5rc' 'etc/sddm.conf.d/10-speedyos.conf')
 source=("SpeedyOS.colors" "SpeedyOS.colorscheme" "SpeedyOS.profile"
-        "kdeglobals" "konsolerc" "kscreenlockerrc" "sddm-theme.conf.user" "kded5rc" "sddm-speedyos.conf")
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+        "kdeglobals" "konsolerc" "kscreenlockerrc" "sddm-theme.conf.user" "kded5rc" "sddm-speedyos.conf"
+        "fastfetch.jsonc" "fastfetch-logo.txt")
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 _art="$startdir/../../artwork"
 
@@ -71,4 +75,18 @@ package() {
     # the documented per-system override file, not owned by any package).
     install -Dm644 "$srcdir/sddm-theme.conf.user" "$pkgdir/usr/share/sddm/themes/breeze/theme.conf.user"
     install -Dm644 "$srcdir/sddm-speedyos.conf" "$pkgdir/etc/sddm.conf.d/10-speedyos.conf"
+
+    # Boot splash and boot menu (artwork/generate-boot-art.py). The installer
+    # selects them; nothing here changes the boot setup on its own.
+    local f
+    for f in "$_art"/plymouth/speedyos/*; do
+        install -Dm644 "$f" "$pkgdir/usr/share/plymouth/themes/speedyos/${f##*/}"
+    done
+    for f in "$_art"/grub/speedyos/*; do
+        install -Dm644 "$f" "$pkgdir/usr/share/grub/themes/speedyos/${f##*/}"
+    done
+
+    # fastfetch: beagle logo and "SpeedyOS" OS line for everyone.
+    install -Dm644 "$srcdir/fastfetch.jsonc" "$pkgdir/etc/xdg/fastfetch/config.jsonc"
+    install -Dm644 "$srcdir/fastfetch-logo.txt" "$pkgdir/usr/share/speedyos/fastfetch-logo.txt"
 }

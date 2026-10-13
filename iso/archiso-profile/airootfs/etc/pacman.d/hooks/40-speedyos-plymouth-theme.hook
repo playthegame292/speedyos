@@ -1,0 +1,15 @@
+# remove from airootfs!
+# ISO build only: select the SpeedyOS boot splash before the initramfs is
+# built (90-mkinitcpio-install). Installed systems get it from finalize-install.
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = plymouth
+Target = speedy-branding
+
+[Action]
+Description = Selecting the SpeedyOS boot splash...
+When = PostTransaction
+Exec = /usr/bin/plymouth-set-default-theme speedyos

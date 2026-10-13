@@ -19,6 +19,11 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 REPO_DIR="$PROJECT_ROOT/iso/custom-repo"
 REPO_DB="$REPO_DIR/speedyos.db.tar.zst"
 PACKAGES=(speedy-branding speedy-cli speedy-welcome)
+# Prebuilt AUR packages shipped in the image. Their PKGBUILDs come from the
+# AUR (build/aur/); review a PKGBUILD before bumping it.
+# paru-bin is not used: its binary needs libalpm.so.15 (current pacman: 16).
+AUR_PACKAGES=(yay-bin)
+AUR_DIR="$PROJECT_ROOT/build/aur"
 
 echo -e "${BLUE}🐾 SpeedyOS Package Builder${NC}"
 echo ""
@@ -46,6 +51,27 @@ for pkg in "${PACKAGES[@]}"; do
     built=("$dir/$pkg"-*.pkg.tar.zst)
     [ -f "${built[0]}" ] || { echo -e "${RED}✗ $pkg did not produce a package${NC}"; exit 1; }
     # Drop older versions of this package from the repo directory.
+    find "$REPO_DIR" -maxdepth 1 -name "$pkg-[0-9]*.pkg.tar.zst" -delete
+    cp -- "${built[@]}" "$REPO_DIR/"
+    echo -e "${GREEN}✓ $(basename "${built[0]}")${NC}"
+done
+
+for pkg in "${AUR_PACKAGES[@]}"; do
+    dir="$AUR_DIR/$pkg"
+    echo -e "${BLUE}Building $pkg (AUR)...${NC}"
+    if [ -d "$dir/.git" ]; then
+        git -C "$dir" pull -q --ff-only
+    else
+        mkdir -p "$AUR_DIR"
+        git clone -q "https://aur.archlinux.org/$pkg.git" "$dir"
+    fi
+    (
+        cd "$dir"
+        rm -f -- *.pkg.tar.zst
+        makepkg --force --cleanbuild --nodeps --noconfirm >/dev/null
+    )
+    built=("$dir"/*.pkg.tar.zst)
+    [ -f "${built[0]}" ] || { echo -e "${RED}✗ $pkg did not produce a package${NC}"; exit 1; }
     find "$REPO_DIR" -maxdepth 1 -name "$pkg-[0-9]*.pkg.tar.zst" -delete
     cp -- "${built[@]}" "$REPO_DIR/"
     echo -e "${GREEN}✓ $(basename "${built[0]}")${NC}"

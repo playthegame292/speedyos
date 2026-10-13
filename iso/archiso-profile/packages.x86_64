@@ -131,8 +131,24 @@ pyside6
 noto-fonts
 noto-fonts-emoji
 
-# Maintenance helpers used by speedy-cli
+# Maintenance helpers used by speedy-cli (update check, drivers)
 pacman-contrib
+fakeroot
+libnotify
+pciutils
+
+# Boot splash
+plymouth
+
+# Btrfs snapshots (set up by the installer; removed again on non-Btrfs installs)
+snapper
+snap-pac
+grub-btrfs
+inotify-tools
+
+# AUR helper (prebuilt from the AUR into the [speedyos] repo)
+yay-bin
+base-devel
 
 # Calamares installer dependencies
 calamares
