@@ -1,0 +1,10 @@
+# SpeedyOS system-wide KDE defaults (users can override everything).
+[KDE]
+LookAndFeelPackage=org.speedyos.desktop
+
+[General]
+ColorScheme=SpeedyOS
+AccentColor=224,148,82
+
+[Icons]
+Theme=breeze-dark

@@ -1,0 +1,23 @@
+# Maintainer: Seby <seby@speedyos>
+pkgname=speedy-welcome
+pkgver=0.3.0
+pkgrel=1
+pkgdesc="SpeedyOS Welcome Center - Friendly GUI onboarding for SpeedyOS"
+arch=('any')
+url="https://github.com/sebytremblay/speedyos"
+license=('MIT')
+depends=('python' 'pyside6' 'speedy-branding')
+optdepends=('konsole: run speedy commands from the app')
+source=(
+    "speedyos-welcome"
+    "speedyos-welcome.desktop"
+    "speedyos-welcome-autostart.desktop"
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "$srcdir/speedyos-welcome" "$pkgdir/usr/bin/speedyos-welcome"
+    install -Dm644 "$srcdir/speedyos-welcome.desktop" "$pkgdir/usr/share/applications/speedyos-welcome.desktop"
+    # Shown at login until the user unticks "Show at login" in the app.
+    install -Dm644 "$srcdir/speedyos-welcome-autostart.desktop" "$pkgdir/etc/xdg/autostart/speedyos-welcome.desktop"
+}

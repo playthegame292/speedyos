@@ -1,0 +1,19 @@
+# Maintainer: Seby <seby@speedyos>
+pkgname=speedy-cli
+pkgver=0.3.0
+pkgrel=1
+pkgdesc="SpeedyOS command-line companion (speedy) - friendly wrappers around pacman and systemd"
+arch=('any')
+url="https://github.com/sebytremblay/speedyos"
+license=('MIT')
+depends=('bash' 'pacman' 'systemd' 'coreutils' 'procps-ng' 'util-linux' 'sudo')
+optdepends=(
+    'networkmanager: network status in speedy doctor'
+    'pacman-contrib: for paccache in clean command'
+)
+source=("speedy")
+sha256sums=('SKIP')
+
+package() {
+    install -Dm755 "$srcdir/speedy" "$pkgdir/usr/bin/speedy"
+}

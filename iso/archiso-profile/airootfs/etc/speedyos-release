@@ -1,0 +1,7 @@
+# SpeedyOS release information (shell-sourceable).
+# /etc/os-release stays Arch Linux's: SpeedyOS is Arch with SpeedyOS defaults.
+SPEEDYOS_NAME="SpeedyOS"
+SPEEDYOS_VERSION="2026.10"
+SPEEDYOS_CODENAME="Beagle Run"
+SPEEDYOS_MOTTO="Fast Paws. Arch Power."
+SPEEDYOS_URL="https://github.com/sebytremblay/speedyos"

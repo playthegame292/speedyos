@@ -1,0 +1,37 @@
+---
+componentName:  speedyos
+welcomeStyleCalamares:   false
+welcomeExpandingLogo:    true
+windowExpanding:    noexpand
+windowSize: 800px, 520px
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         SpeedyOS
+    shortProductName:    SpeedyOS
+    version:             2026.10
+    shortVersion:        2026.10
+    versionedName:       SpeedyOS 2026.10 "Beagle Run"
+    shortVersionedName:  SpeedyOS 2026.10
+    bootloaderEntryName: SpeedyOS
+    productUrl:          https://github.com/sebytremblay/speedyos
+    supportUrl:          https://github.com/sebytremblay/speedyos
+    knownIssuesUrl:      https://github.com/sebytremblay/speedyos
+    releaseNotesUrl:     https://github.com/sebytremblay/speedyos
+    donateUrl:           https://github.com/sebytremblay/speedyos
+
+images:
+    productLogo:         "speedyos-logo.png"
+    productIcon:         "speedyos-icon.png"
+    productWelcome:      "welcome.png"
+
+style:
+   SidebarBackground:    "#24201D"
+   SidebarText:          "#EDE5DC"
+   SidebarTextCurrent:   "#F5EAD7"
+   SidebarBackgroundCurrent: "#8C5A32"
+
+slideshow:               "show.qml"
+slideshowAPI: 2

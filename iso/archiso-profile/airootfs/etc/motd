@@ -1,0 +1,13 @@
+
+  SpeedyOS live environment -- Fast Paws. Arch Power.
+
+  You are logged in to the live system. Nothing here is saved to disk.
+
+  Useful commands:
+    speedy help        list Speedy commands
+    speedy installer   start the graphical installer (Calamares)
+    speedy doctor      quick health check
+    nmtui              connect to a network from the console
+
+  The live user "speedyuser" and root have no password in this session.
+

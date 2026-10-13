@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# SpeedyOS post-install finalizer.
+#
+# Run by Calamares (shellprocess@finalize) *inside the chroot* of the freshly
+# unpacked target system, after users are created and before initcpio/
+# bootloader. It turns a copy of the live image into a normal installed
+# system. It never touches block devices.
+set -euo pipefail
+
+say() { printf 'speedyos-finalize: %s\n' "$*"; }
+
+# Calamares mounts a fresh tmpfs on /run inside the target chroot, so
+# /run/archiso only exists when this is (wrongly) run on the live system.
+if [[ -d /run/archiso ]]; then
+    say "refusing to run on the live system; this only runs inside the installer chroot"
+    exit 1
+fi
+
+# 1. Kernel. archiso empties /boot in the image; restore each kernel from its
+#    module directory, exactly as mkinitcpio's pacman install hook does.
+found=0
+for kdir in /usr/lib/modules/*/; do
+    [[ -f ${kdir}pkgbase && -f ${kdir}vmlinuz ]] || continue
+    pkgbase=$(<"${kdir}pkgbase")
+    install -Dm644 "${kdir}vmlinuz" "/boot/vmlinuz-${pkgbase}"
+    # Standard Arch preset (the live image ships a reduced one).
+    cat >"/etc/mkinitcpio.d/${pkgbase}.preset" <<PRESET
+# mkinitcpio preset file for the '${pkgbase}' package (SpeedyOS)
+ALL_kver="/boot/vmlinuz-${pkgbase}"
+PRESETS=('default' 'fallback')
+default_image="/boot/initramfs-${pkgbase}.img"
+fallback_image="/boot/initramfs-${pkgbase}-fallback.img"
+fallback_options="-S autodetect"
+PRESET
+    say "restored /boot/vmlinuz-${pkgbase}"
+    found=1
+done
+(( found )) || { say "no kernel found in /usr/lib/modules"; exit 1; }
+
+# 2. Live-session-only configuration.
+rm -f  /etc/sudoers.d/10-speedyos-live \
+       /etc/sysusers.d/speedyos-live.conf \
+       /etc/sddm.conf.d/autologin.conf \
+       /etc/mkinitcpio.conf.d/archiso.conf \
+       /etc/systemd/journald.conf.d/volatile-storage.conf \
+       /etc/systemd/logind.conf.d/do-not-suspend.conf \
+       /etc/systemd/resolved.conf.d/archiso.conf \
+       /etc/systemd/system-generators/systemd-gpt-auto-generator \
+       /etc/systemd/system/{choose-mirror,pacman-init,livecd-alsa-unmuter}.service \
+       /etc/systemd/system/etc-pacman.d-gnupg.mount \
+       /etc/systemd/system/systemd-loop@.service \
+       /etc/systemd/system/multi-user.target.wants/{choose-mirror,pacman-init}.service \
+       /etc/systemd/system/sound.target.wants/livecd-alsa-unmuter.service \
+       /etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service \
+       /root/.automated_script.sh /root/.zlogin \
+       /usr/local/bin/{choose-mirror,livecd-sound,Installation_guide,speedyos-installer,speedyos-try-install} \
+       /etc/xdg/autostart/speedyos-try-install.desktop \
+       /usr/share/applications/speedyos-installer.desktop
+rm -rf /etc/systemd/system/getty@tty1.service.d \
+       /usr/local/share/livecd-sound \
+       /etc/calamares
+cat >/etc/motd <<'MOTD'
+
+  SpeedyOS -- Fast Paws. Arch Power.
+  Run "speedy help" for SpeedyOS commands.
+
+MOTD
+
+# Arch's default modes for the credential files (never world-readable).
+chmod 600 /etc/shadow /etc/gshadow
+chown root:root /etc/shadow /etc/gshadow
+
+# 3. pacman keyring (the live image keeps it on a tmpfs, so it is empty here).
+pacman-key --init
+pacman-key --populate archlinux
+
+# 4. The installer is not needed on the installed system.
+if pacman -Q calamares >/dev/null 2>&1; then
+    pacman -Rns --noconfirm calamares || say "warning: could not remove calamares"
+fi
+
+say "done"
+rm -f -- "$0"

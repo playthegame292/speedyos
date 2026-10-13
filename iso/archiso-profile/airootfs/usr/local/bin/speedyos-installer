@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Launch the Calamares installer from the SpeedyOS live session.
+# Runs Calamares as root while keeping the user's Wayland/X11 session
+# variables so the window can open on the live desktop.
+set -euo pipefail
+
+if [[ ! -d /run/archiso ]]; then
+    echo "speedyos-installer: this is not the SpeedyOS live environment; refusing to run." >&2
+    exit 1
+fi
+if ! command -v calamares >/dev/null 2>&1; then
+    echo "speedyos-installer: calamares is not installed in this image." >&2
+    exit 1
+fi
+if pgrep -x calamares >/dev/null 2>&1; then
+    echo "speedyos-installer: the installer is already running." >&2
+    exit 0
+fi
+
+log="/tmp/speedyos-installer.log"
+exec sudo --preserve-env=WAYLAND_DISPLAY,XDG_RUNTIME_DIR,DISPLAY,XAUTHORITY,QT_QPA_PLATFORM,XDG_SESSION_TYPE,XDG_CURRENT_DESKTOP,KDE_FULL_SESSION,KDE_SESSION_VERSION,LANG \
+    calamares -D6 "$@" >"$log" 2>&1

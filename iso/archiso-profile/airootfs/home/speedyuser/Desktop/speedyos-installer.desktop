@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Install SpeedyOS
+GenericName=System Installer
+Comment=Install SpeedyOS to this computer
+Exec=/usr/local/bin/speedyos-installer
+Icon=speedyos
+Terminal=false
+StartupNotify=true
+Categories=Qt;System;
+X-AppStream-Ignore=true

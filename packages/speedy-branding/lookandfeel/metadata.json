@@ -1,0 +1,13 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [ { "Name": "SpeedyOS" } ],
+        "Category": "",
+        "Description": "SpeedyOS desktop: warm beagle colours on Breeze. Fast Paws. Arch Power.",
+        "Id": "org.speedyos.desktop",
+        "License": "GPL-2.0-or-later",
+        "Name": "SpeedyOS",
+        "Website": "https://github.com/sebytremblay/speedyos"
+    },
+    "X-Plasma-APIVersion": "2"
+}

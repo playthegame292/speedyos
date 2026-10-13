@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=SpeedyOS Welcome Center
+Comment=Welcome to SpeedyOS — Beagle Run
+Exec=speedyos-welcome
+Icon=speedyos
+Terminal=false
+Type=Application
+Categories=System;Settings;
+StartupNotify=true

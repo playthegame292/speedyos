@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Try or Install SpeedyOS
+Comment=Choose between trying SpeedyOS and installing it
+Exec=/usr/local/bin/speedyos-try-install
+Icon=speedyos
+Terminal=false
+NoDisplay=true
+X-KDE-autostart-phase=2

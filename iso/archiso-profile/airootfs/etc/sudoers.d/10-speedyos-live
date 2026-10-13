@@ -1,0 +1,4 @@
+# SpeedyOS live session only: passwordless sudo for the live user.
+# The installer deletes this file; installed systems use the wheel rule
+# written by Calamares (password required).
+speedyuser ALL=(ALL:ALL) NOPASSWD: ALL

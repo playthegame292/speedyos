@@ -1,0 +1,824 @@
+#!/usr/bin/env python3
+"""
+SpeedyOS Welcome Center
+Fast Paws. Arch Power.
+A friendly, beagle-themed welcome center for SpeedyOS.
+"""
+
+import sys
+import os
+import platform
+import shlex
+import subprocess
+import shutil
+from PySide6.QtCore import Qt, QSize, QEvent, Signal
+from PySide6.QtGui import QIcon, QPixmap, QFont
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QStackedWidget, QListWidget, QListWidgetItem,
+    QFrame, QScrollArea, QGridLayout, QTextBrowser, QMessageBox, QCheckBox
+)
+
+DOCS_URL = "https://github.com/sebytremblay/speedyos/tree/main/docs"
+ARCH_WIKI_URL = "https://wiki.archlinux.org/"
+AUTOSTART_NAME = "speedyos-welcome.desktop"
+LINK_CSS = "a { color: #e0a060; }"
+KONAMI = [Qt.Key_Up, Qt.Key_Up, Qt.Key_Down, Qt.Key_Down, Qt.Key_Left,
+          Qt.Key_Right, Qt.Key_Left, Qt.Key_Right, Qt.Key_B, Qt.Key_A]
+BARKS = ["Woof!", "Arooo!", "Bark bark!", "*sniff sniff*", "*wags tail*",
+         "Is that a squirrel?", "Treat? TREAT?!"]
+
+
+def read_kv_file(path):
+    """Parse a shell-style KEY="value" file such as /etc/os-release."""
+    data = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                try:
+                    data[key] = " ".join(shlex.split(value))
+                except ValueError:
+                    data[key] = value.strip('"')
+    except OSError:
+        pass
+    return data
+
+
+def user_autostart_file():
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(base, "autostart", AUTOSTART_NAME)
+
+
+def autostart_enabled():
+    """The package ships /etc/xdg/autostart; a user copy with Hidden=true disables it."""
+    data = read_kv_file(user_autostart_file())
+    return data.get("Hidden", "false").lower() != "true"
+
+
+def set_autostart(enabled):
+    path = user_autostart_file()
+    if enabled:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write("[Desktop Entry]\nType=Application\nName=SpeedyOS Welcome Center\n"
+                "Exec=speedyos-welcome\nHidden=true\n")
+
+def is_live_environment():
+    """Detect if running in live ISO or an installed system"""
+    indicators = [
+        "/run/archiso/bootmnt",
+        "/run/speedyos/bootmnt",
+        "/run/archiso",
+        "/run/speedyos"
+    ]
+    return any(os.path.exists(path) for path in indicators)
+
+def find_logo():
+    """Find the SpeedyOS logo image"""
+    candidates = [
+        "/usr/share/pixmaps/speedyos.png",
+        "/usr/share/icons/hicolor/256x256/apps/speedyos.png",
+        os.path.join(os.path.dirname(__file__), "../../artwork/branding/speedylogo.png"),
+        os.path.join(os.path.dirname(__file__), "../../artwork/icons/speedyos.png"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return ""
+
+class ClickableLabel(QLabel):
+    clicked = Signal()
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class SpeedyWelcomeApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Welcome to SpeedyOS — Beagle Run")
+        self.resize(960, 640)
+        self.setMinimumSize(840, 560)
+
+        self.is_live = is_live_environment()
+        self.logo_path = find_logo()
+        if self.logo_path:
+            self.setWindowIcon(QIcon(self.logo_path))
+        self.keys = []
+        self.logo_clicks = 0
+
+        self.init_ui()
+        self.apply_theme()
+
+    def init_ui(self):
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        main_layout = QHBoxLayout(main_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Left Sidebar
+        sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(240)
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(16, 24, 16, 24)
+        sidebar_layout.setSpacing(12)
+
+        # Header Mascot in Sidebar
+        header_layout = QHBoxLayout()
+        if self.logo_path:
+            logo_label = ClickableLabel()
+            logo_label.clicked.connect(self.pet_speedy)
+            pixmap = QPixmap(self.logo_path).scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            logo_label.setPixmap(pixmap)
+            header_layout.addWidget(logo_label)
+
+        title_box = QVBoxLayout()
+        app_title = QLabel("SpeedyOS")
+        app_title.setObjectName("sidebarTitle")
+        app_sub = QLabel("Beagle Run")
+        app_sub.setObjectName("sidebarSub")
+        title_box.addWidget(app_title)
+        title_box.addWidget(app_sub)
+        header_layout.addLayout(title_box)
+        header_layout.addStretch()
+
+        sidebar_layout.addLayout(header_layout)
+
+        # Mode Badge
+        mode_badge = QLabel("🐾 Live Session" if self.is_live else "🐾 Installed System")
+        mode_badge.setObjectName("liveBadge" if self.is_live else "installedBadge")
+        mode_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sidebar_layout.addWidget(mode_badge)
+
+        sidebar_layout.addSpacing(16)
+
+        # Navigation List
+        self.nav_list = QListWidget()
+        self.nav_list.setObjectName("navList")
+
+        items = [
+            ("🐾 Start Here", 0),
+            ("📦 Applications", 1),
+            ("⚡ Speedy Commands", 2),
+            ("⚙️ Desktop Settings", 3),
+            ("ℹ️ System Information", 4),
+            ("🩺 Troubleshooting", 5),
+            ("📖 Release Notes", 6),
+        ]
+
+        for text, index in items:
+            item = QListWidgetItem(text)
+            item.setSizeHint(QSize(200, 42))
+            self.nav_list.addItem(item)
+
+        self.nav_list.setCurrentRow(0)
+        self.nav_list.currentRowChanged.connect(self.switch_page)
+        self.nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_list.setMinimumHeight(len(items) * 44 + 8)
+        sidebar_layout.addWidget(self.nav_list, 1)
+
+        self.autostart_box = QCheckBox("Show at login")
+        self.autostart_box.setObjectName("autostartBox")
+        self.autostart_box.setChecked(autostart_enabled())
+        self.autostart_box.toggled.connect(self.toggle_autostart)
+        sidebar_layout.addWidget(self.autostart_box)
+
+        # Footer motto
+        motto = QLabel("Fast Paws. Arch Power.")
+        motto.setObjectName("motto")
+        motto.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sidebar_layout.addWidget(motto)
+
+        main_layout.addWidget(sidebar)
+
+        # Right Content Area
+        self.pages = QStackedWidget()
+        self.pages.setObjectName("contentArea")
+
+        self.pages.addWidget(self.create_start_page())
+        self.pages.addWidget(self.create_apps_page())
+        self.pages.addWidget(self.create_commands_page())
+        self.pages.addWidget(self.create_settings_page())
+        self.pages.addWidget(self.create_info_page())
+        self.pages.addWidget(self.create_troubleshooting_page())
+        self.pages.addWidget(self.create_release_notes_page())
+
+        main_layout.addWidget(self.pages)
+
+    def create_start_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(20)
+
+        # Big Greeting
+        greeting = QLabel("Welcome to SpeedyOS! 🐾")
+        greeting.setObjectName("pageTitle")
+        layout.addWidget(greeting)
+
+        subtitle = QLabel("A fast, friendly, beagle-inspired operating system powered by Arch Linux and KDE Plasma 6.")
+        subtitle.setObjectName("pageSubtitle")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        # Primary Action Card (Installer in Live mode, System status in installed)
+        card = QFrame()
+        card.setObjectName("actionCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(24, 24, 24, 24)
+        card_layout.setSpacing(12)
+
+        if self.is_live:
+            card_title = QLabel("Ready to Install SpeedyOS?")
+            card_title.setObjectName("cardTitle")
+            card_desc = QLabel("You are currently running from the live environment. Run the graphical installer to set up SpeedyOS on your computer with guided partitioning, user setup, and hardware configuration.")
+            card_desc.setWordWrap(True)
+
+            install_btn = QPushButton("🚀 Install SpeedyOS (Calamares)")
+            install_btn.setObjectName("primaryButton")
+            install_btn.setMinimumHeight(46)
+            install_btn.clicked.connect(self.launch_installer)
+
+            card_layout.addWidget(card_title)
+            card_layout.addWidget(card_desc)
+            card_layout.addWidget(install_btn)
+        else:
+            card_title = QLabel("SpeedyOS is Installed & Ready!")
+            card_title.setObjectName("cardTitle")
+            card_desc = QLabel("Your system is running directly from disk. Enjoy rolling Arch Linux updates, KDE Plasma customisation, and the Speedy CLI ecosystem.")
+            card_desc.setWordWrap(True)
+
+            update_btn = QPushButton("🐾 Check System Updates")
+            update_btn.setObjectName("primaryButton")
+            update_btn.setMinimumHeight(46)
+            update_btn.clicked.connect(self.launch_update)
+
+            card_layout.addWidget(card_title)
+            card_layout.addWidget(card_desc)
+            card_layout.addWidget(update_btn)
+
+        layout.addWidget(card)
+
+        # Quick shortcuts row
+        shortcuts_layout = QHBoxLayout()
+        shortcuts_layout.setSpacing(12)
+
+        wifi_btn = QPushButton("📶 Connect Wi-Fi")
+        wifi_btn.setObjectName("secondaryButton")
+        wifi_btn.clicked.connect(lambda: self.run_command("systemsettings kcm_networkmanagement"))
+
+        term_btn = QPushButton("💻 Open Terminal")
+        term_btn.setObjectName("secondaryButton")
+        term_btn.clicked.connect(lambda: self.run_command("konsole"))
+
+        browser_btn = QPushButton("🌐 Web Browser")
+        browser_btn.setObjectName("secondaryButton")
+        browser_btn.clicked.connect(lambda: self.run_command("firefox"))
+
+        docs_btn = QPushButton("📖 Documentation")
+        docs_btn.setObjectName("secondaryButton")
+        docs_btn.clicked.connect(lambda: self.open_url(DOCS_URL))
+
+        shortcuts_layout.addWidget(wifi_btn)
+        shortcuts_layout.addWidget(term_btn)
+        shortcuts_layout.addWidget(browser_btn)
+        shortcuts_layout.addWidget(docs_btn)
+        layout.addLayout(shortcuts_layout)
+
+        layout.addStretch()
+        return page
+
+    def create_apps_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(16)
+
+        title = QLabel("Discover Applications 📦")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        sub = QLabel("Explore popular software available in official Arch Linux repositories. Install via terminal with 'speedy install <pkg>'.")
+        sub.setWordWrap(True)
+        layout.addWidget(sub)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        container = QWidget()
+        grid = QGridLayout(container)
+        grid.setSpacing(14)
+
+        apps = [
+            ("Firefox", "Modern, privacy-respecting browser", "firefox", "Internet"),
+            ("VLC", "Universal media and video player", "vlc", "Media"),
+            ("LibreOffice", "Full-featured office and document suite", "libreoffice-fresh", "Office"),
+            ("GIMP", "Advanced image and photo editor", "gimp", "Graphics"),
+            ("Visual Studio Code", "Popular code editor and IDE", "code", "Development"),
+            ("Steam", "Digital distribution gaming platform", "steam", "Gaming"),
+            ("Discord", "All-in-one voice and text chat", "discord", "Communication"),
+            ("OBS Studio", "Live streaming and screen recording", "obs-studio", "Media"),
+            ("Kate", "Advanced text editor (KDE)", "kate", "Development"),
+            ("Dolphin", "Intuitive KDE file manager", "dolphin", "System"),
+        ]
+
+        for i, (name, desc, pkg, cat) in enumerate(apps):
+            box = QFrame()
+            box.setObjectName("appCard")
+            box_layout = QVBoxLayout(box)
+            box_layout.setContentsMargins(14, 14, 14, 14)
+
+            t = QLabel(f"<b>{name}</b> <span style='color: #8C5A32;'>({cat})</span>")
+            d = QLabel(desc)
+            d.setWordWrap(True)
+            cmd = QLabel(f"<code style='color: #558833;'>speedy install {pkg}</code>")
+
+            box_layout.addWidget(t)
+            box_layout.addWidget(d)
+            box_layout.addWidget(cmd)
+
+            grid.addWidget(box, i // 2, i % 2)
+
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+        return page
+
+    def create_commands_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(16)
+
+        title = QLabel("Speedy Commands ⚡")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        sub = QLabel("SpeedyOS includes a friendly command-line companion 'speedy' designed for fast, intuitive system maintenance:")
+        layout.addWidget(sub)
+
+        browser = QTextBrowser()
+        browser.setObjectName("codeBrowser")
+        browser.setHtml("""
+        <table width="100%" cellpadding="8" style="font-family: monospace;">
+            <tr style="background-color: rgba(140, 90, 50, 0.2);">
+                <td><b>Command</b></td>
+                <td><b>Description</b></td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy help</b></td>
+                <td>Displays the command guide featuring the beagle mascot.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy update</b></td>
+                <td>Synchronizes repositories and performs a full system upgrade.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy install &lt;pkg&gt;</b></td>
+                <td>Installs requested packages through pacman.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy remove &lt;pkg&gt;</b></td>
+                <td>Requests confirmation before cleanly removing packages.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy search &lt;term&gt;</b></td>
+                <td>Fast search across available package databases.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy info</b></td>
+                <td>Displays SpeedyOS version, kernel, uptime, memory, and CPU info.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy doctor</b></td>
+                <td>Inspects system health, services, package database, and disk.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy clean</b></td>
+                <td>Safely trims older package caches without deleting user data.</td>
+            </tr>
+            <tr>
+                <td><b style="color: #c97d3e;">speedy apps</b></td>
+                <td>Lists recommended software across desktop categories.</td>
+            </tr>
+        </table>
+        """)
+        layout.addWidget(browser)
+
+        run_doctor_btn = QPushButton("🩺 Run Speedy Doctor Diagnostics")
+        run_doctor_btn.setObjectName("secondaryButton")
+        run_doctor_btn.clicked.connect(lambda: self.run_terminal_command("speedy doctor; echo; read -rp 'Press Enter to close...'"))
+        layout.addWidget(run_doctor_btn)
+        return page
+
+    def create_settings_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(18)
+
+        title = QLabel("Desktop & Hardware Settings ⚙️")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        sub = QLabel("Quick shortcuts to configure your KDE Plasma 6 desktop and hardware peripherals:")
+        layout.addWidget(sub)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
+
+        buttons = [
+            ("🎨 Appearance & Themes", "systemsettings kcm_lookandfeel"),
+            ("🖼️ Wallpaper Settings", "systemsettings kcm_wallpaper"),
+            ("📶 Network & Wi-Fi", "systemsettings kcm_networkmanagement"),
+            ("🎧 Audio & PipeWire", "systemsettings kcm_pulseaudio"),
+            ("🖥️ Displays & Resolution", "systemsettings kcm_kscreen"),
+            ("⌨️ Keyboard & Shortcuts", "systemsettings kcm_keyboard"),
+            ("🖱️ Mouse & Touchpad", "systemsettings kcm_mouse"),
+            ("⚙️ All System Settings", "systemsettings"),
+        ]
+
+        for i, (label, cmd) in enumerate(buttons):
+            btn = QPushButton(label.replace("&", "&&"))
+            btn.setObjectName("gridButton")
+            btn.setMinimumHeight(48)
+            btn.clicked.connect(lambda checked=False, c=cmd: self.run_command(c))
+            grid.addWidget(btn, i // 2, i % 2)
+
+        layout.addLayout(grid)
+        layout.addStretch()
+        return page
+
+    def create_info_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(16)
+
+        title = QLabel("System Information ℹ️")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        browser = QTextBrowser()
+        browser.setObjectName("codeBrowser")
+
+        browser.setHtml(self.system_info_html())
+        layout.addWidget(browser)
+
+        refresh_btn = QPushButton("💻 Open Fastfetch in Terminal")
+        refresh_btn.setObjectName("secondaryButton")
+        refresh_btn.clicked.connect(lambda: self.run_terminal_command("fastfetch; echo; read -rp 'Press Enter to close...'"))
+        layout.addWidget(refresh_btn)
+        return page
+
+    def system_info_html(self):
+        osr = read_kv_file("/etc/os-release")
+        spr = read_kv_file("/etc/speedyos-release")
+        uname = platform.uname()
+        mem = ""
+        try:
+            with open("/proc/meminfo") as f:
+                kb = int(next(l for l in f if l.startswith("MemTotal")).split()[1])
+            mem = f"{kb / 1024 / 1024:.1f} GiB"
+        except (OSError, StopIteration, ValueError):
+            mem = "unknown"
+        cpu = "unknown"
+        try:
+            with open("/proc/cpuinfo") as f:
+                cpu = next(l for l in f if l.startswith("model name")).split(":", 1)[1].strip()
+        except (OSError, StopIteration):
+            pass
+        session = os.environ.get("XDG_SESSION_TYPE", "unknown")
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "unknown")
+        version = spr.get("SPEEDYOS_VERSION", "unknown")
+        codename = spr.get("SPEEDYOS_CODENAME", "")
+        rows = [
+            ("SpeedyOS", f"{version} “{codename}”" if codename else version),
+            ("Base", osr.get("PRETTY_NAME", "Arch Linux")),
+            ("Mode", "Live session" if self.is_live else "Installed system"),
+            ("Desktop", f"{desktop} ({session})"),
+            ("Kernel", uname.release),
+            ("Architecture", uname.machine),
+            ("Host name", uname.node),
+            ("CPU", cpu),
+            ("Memory", mem),
+        ]
+        body = "".join(f"<tr><td><b>{k}</b></td><td>{v}</td></tr>" for k, v in rows)
+        return f"""<h3 style="color: #c97d3e;">🐾 SpeedyOS</h3>
+        <table cellpadding="6">{body}</table>"""
+
+    def create_troubleshooting_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(16)
+
+        title = QLabel("Troubleshooting 🩺")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        browser = QTextBrowser()
+        browser.setObjectName("codeBrowser")
+        browser.setOpenExternalLinks(True)
+        browser.document().setDefaultStyleSheet(LINK_CSS)
+        browser.setHtml(f"""
+        <h3 style="color: #c97d3e;">No internet</h3>
+        <p>Click the network icon in the panel, or open <b>Network &amp; Wi-Fi</b> below.
+        From a text console, <code>nmtui</code> does the same.</p>
+        <h3 style="color: #c97d3e;">No sound</h3>
+        <p>Open <b>Audio</b> below and check the output device and volume.
+        <code>wpctl status</code> lists PipeWire devices.</p>
+        <h3 style="color: #c97d3e;">Updates fail</h3>
+        <p>Run <code>speedy doctor</code>. "Invalid or corrupted package (PGP signature)" usually means the
+        keyring is old: <code>sudo pacman -Sy archlinux-keyring</code>, then <code>speedy update</code>.</p>
+        <h3 style="color: #c97d3e;">Something crashed</h3>
+        <p>Recent errors: <code>journalctl -b -p err</code>. Failed services: <code>systemctl --failed</code>.</p>
+        <h3 style="color: #c97d3e;">The installer failed</h3>
+        <p>The full installer log is in <code>/root/.cache/calamares/session.log</code>
+        (view it with <code>sudo less /root/.cache/calamares/session.log</code>).</p>
+        <p>More help: <a href="{DOCS_URL}">SpeedyOS docs</a> ·
+        <a href="{ARCH_WIKI_URL}">ArchWiki</a></p>
+        """)
+        layout.addWidget(browser)
+
+        row = QHBoxLayout()
+        for label, action in [
+            ("🩺 Run speedy doctor", lambda: self.run_terminal_command("speedy doctor; echo; read -rp 'Press Enter to close...'")),
+            ("📶 Network && Wi-Fi", lambda: self.run_command("systemsettings kcm_networkmanagement")),
+            ("🎧 Audio", lambda: self.run_command("systemsettings kcm_pulseaudio")),
+        ]:
+            btn = QPushButton(label)
+            btn.setObjectName("secondaryButton")
+            btn.clicked.connect(action)
+            row.addWidget(btn)
+        layout.addLayout(row)
+        return page
+
+    def create_release_notes_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(36, 36, 36, 36)
+        layout.setSpacing(16)
+
+        title = QLabel("Release Notes 📖")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        browser = QTextBrowser()
+        browser.setObjectName("codeBrowser")
+        browser.setOpenExternalLinks(True)
+        browser.document().setDefaultStyleSheet(LINK_CSS)
+        browser.setHtml("""
+        <h3>SpeedyOS 2026.10 — Beagle Run</h3>
+        <p><b>Initial Release Highlights:</b></p>
+        <ul>
+            <li><b>Real Arch Linux Base:</b> Pure rolling-release Arch Linux system with pacman package management.</li>
+            <li><b>KDE Plasma 6:</b> Modern, responsive desktop environment powered by Wayland.</li>
+            <li><b>Beagle Theme:</b> Warm palette (warm browns, cream accents, dark slate), custom wallpaper featuring baby Speedy.</li>
+            <li><b>Calamares Installer:</b> Guided graphical installer for effortless setup on UEFI and BIOS hardware.</li>
+            <li><b>Speedy CLI:</b> Unified command-line companion with built-in system diagnostics and package helpers.</li>
+            <li><b>Modern Audio & Networking:</b> PipeWire sound server and NetworkManager out of the box.</li>
+        </ul>
+        <hr/>
+        <p>Project repository: <a href="https://github.com/sebytremblay/speedyos">https://github.com/sebytremblay/speedyos</a></p>
+        """)
+        layout.addWidget(browser)
+        return page
+
+    def switch_page(self, index):
+        self.pages.setCurrentIndex(index)
+
+    def launch_installer(self):
+        if not self.is_live:
+            QMessageBox.information(self, "SpeedyOS", "SpeedyOS is already installed on this computer.")
+            return
+
+        launcher = shutil.which("speedyos-installer") or "/usr/local/bin/speedyos-installer"
+        if not os.access(launcher, os.X_OK) or not shutil.which("calamares"):
+            QMessageBox.warning(self, "Installer Not Found",
+                                "The SpeedyOS installer (Calamares) is not available in this image.")
+            return
+
+        try:
+            subprocess.Popen([launcher])
+        except OSError as e:
+            QMessageBox.critical(self, "Error Launching Installer", str(e))
+
+    def pet_speedy(self):
+        """Easter egg: pet the logo a few times."""
+        self.logo_clicks += 1
+        if self.logo_clicks % 5 == 0:
+            bark = BARKS[(self.logo_clicks // 5 - 1) % len(BARKS)]
+            QMessageBox.information(self, "Speedy", f"{bark}\n\nYou pet Speedy {self.logo_clicks} times.")
+
+    def eventFilter(self, obj, event):
+        """Easter egg: the Konami code makes Speedy dance in a terminal."""
+        if event.type() == QEvent.KeyPress and not event.isAutoRepeat():
+            self.keys = (self.keys + [event.key()])[-len(KONAMI):]
+            if self.keys == KONAMI:
+                self.keys = []
+                QMessageBox.information(self, "Speedy", "Konami code accepted.\nSpeedy is warming up the dance floor...")
+                self.run_terminal_command("speedy dance")
+        return super().eventFilter(obj, event)
+
+    def launch_update(self):
+        self.run_terminal_command("speedy update; echo; read -rp 'Press Enter to close...'")
+
+    def toggle_autostart(self, enabled):
+        try:
+            set_autostart(enabled)
+        except OSError as e:
+            QMessageBox.warning(self, "SpeedyOS", f"Could not change the startup setting:\n{e}")
+
+    def open_url(self, url):
+        if not self.run_command_args(["xdg-open", url]):
+            QMessageBox.information(self, "SpeedyOS", f"Open this address in a browser:\n{url}")
+
+    def run_command(self, cmd):
+        """Launch a fixed program command line (never user input)."""
+        self.run_command_args(shlex.split(cmd))
+
+    def run_command_args(self, args):
+        if not shutil.which(args[0]):
+            QMessageBox.warning(self, "Not Installed",
+                                f"'{args[0]}' is not installed on this system.\n"
+                                f"Install it with: speedy install <package>")
+            return False
+        try:
+            subprocess.Popen(args, start_new_session=True)
+            return True
+        except OSError as e:
+            QMessageBox.warning(self, "Launch Error", f"Could not start {args[0]}:\n{e}")
+            return False
+
+    def run_terminal_command(self, cmd):
+        """Run a fixed shell snippet in a terminal window."""
+        for term in (["konsole", "-e"], ["xterm", "-e"]):
+            if shutil.which(term[0]):
+                self.run_command_args(term + ["bash", "-c", cmd])
+                return
+        QMessageBox.warning(self, "No Terminal", "No terminal application (Konsole) was found.")
+
+    def apply_theme(self):
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a1816;
+                color: #ede5dc;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                font-size: 13px;
+            }
+            QLabel, QCheckBox {
+                background-color: transparent;
+            }
+            #sidebar {
+                background-color: #24201d;
+                border-right: 1px solid #3d352e;
+            }
+            #sidebarTitle {
+                font-size: 18px;
+                font-weight: bold;
+                color: #f5ead7;
+            }
+            #sidebarSub {
+                font-size: 12px;
+                color: #c97d3e;
+            }
+            #liveBadge {
+                background-color: #8c5a32;
+                color: #fff;
+                border-radius: 10px;
+                padding: 4px 8px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            #installedBadge {
+                background-color: #3e6b48;
+                color: #fff;
+                border-radius: 10px;
+                padding: 4px 8px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            #autostartBox {
+                color: #a8988a;
+                font-size: 11px;
+            }
+            #motto {
+                color: #9c8a7c;
+                font-size: 11px;
+                font-style: italic;
+            }
+            #navList {
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            #navList::item {
+                padding: 8px 12px;
+                border-radius: 8px;
+                color: #d1c5b8;
+            }
+            #navList::item:selected {
+                background-color: #8c5a32;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            #navList::item:hover:!selected {
+                background-color: #383029;
+            }
+            #contentArea {
+                background-color: #1a1816;
+            }
+            #pageTitle {
+                font-size: 24px;
+                font-weight: bold;
+                color: #f5ead7;
+            }
+            #pageSubtitle {
+                font-size: 14px;
+                color: #a8988a;
+            }
+            #actionCard {
+                background-color: #27221e;
+                border: 1px solid #4a3e33;
+                border-radius: 12px;
+            }
+            #cardTitle {
+                font-size: 18px;
+                font-weight: bold;
+                color: #f5ead7;
+            }
+            #primaryButton {
+                background-color: #c97d3e;
+                color: #ffffff;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 8px;
+                border: none;
+                padding: 10px 20px;
+            }
+            #primaryButton:hover {
+                background-color: #d98d4e;
+            }
+            #secondaryButton {
+                background-color: #332c25;
+                color: #ede5dc;
+                border: 1px solid #524538;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            #secondaryButton:hover {
+                background-color: #40372e;
+            }
+            #gridButton {
+                background-color: #27221e;
+                border: 1px solid #42382f;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 12px;
+            }
+            #gridButton:hover {
+                background-color: #362e26;
+                border-color: #8c5a32;
+            }
+            #appCard {
+                background-color: #24201d;
+                border: 1px solid #3d352e;
+                border-radius: 8px;
+            }
+            #codeBrowser {
+                background-color: #211d1a;
+                border: 1px solid #3d352e;
+                border-radius: 8px;
+                color: #e6ded5;
+            }
+        """)
+
+def main():
+    # In the live session the "Try or Install" screen greets the user
+    # instead; the Welcome Center stays one click away on the desktop.
+    if "--autostart" in sys.argv[1:] and is_live_environment():
+        return
+    app = QApplication(sys.argv)
+    window = SpeedyWelcomeApp()
+    app.installEventFilter(window)
+    window.show()
+    sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()

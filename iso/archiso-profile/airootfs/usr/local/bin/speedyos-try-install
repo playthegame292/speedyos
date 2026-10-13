@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""
+SpeedyOS "Try or Install" screen.
+
+Shown full screen when the live session starts (/etc/xdg/autostart). The
+user either starts the installer (Calamares) or closes this screen to try
+SpeedyOS on the live desktop. LIVE ONLY: the installer's finalize step
+deletes this program and its autostart entry from installed systems.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtWidgets import (
+    QApplication, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout,
+    QWidget,
+)
+
+BADGE = "/usr/share/speedyos/speedyos-badge.png"
+INSTALLER = "/usr/local/bin/speedyos-installer"
+
+
+def is_live():
+    return os.path.isdir("/run/archiso")
+
+
+class TryInstall(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Welcome to SpeedyOS")
+        if os.path.exists(BADGE):
+            self.setWindowIcon(QIcon(BADGE))
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(18)
+
+        if os.path.exists(BADGE):
+            badge = QLabel()
+            badge.setPixmap(QPixmap(BADGE).scaled(
+                180, 180, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            badge.setAlignment(Qt.AlignCenter)
+            layout.addWidget(badge)
+
+        title = QLabel("Welcome to SpeedyOS")
+        title.setObjectName("title")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        tagline = QLabel("Fast Paws. Arch Power.")
+        tagline.setObjectName("tagline")
+        tagline.setAlignment(Qt.AlignCenter)
+        layout.addWidget(tagline)
+
+        intro = QLabel(
+            "You can try SpeedyOS without changing anything on this computer,\n"
+            "or install it now. You can still install later from the desktop.")
+        intro.setObjectName("intro")
+        intro.setAlignment(Qt.AlignCenter)
+        layout.addWidget(intro)
+        layout.addSpacing(12)
+
+        buttons = QHBoxLayout()
+        buttons.setSpacing(28)
+        buttons.setAlignment(Qt.AlignCenter)
+        buttons.addWidget(self.choice(
+            "try", "Try SpeedyOS",
+            "Explore the live desktop.\nNothing is written to disk.", self.try_it))
+        buttons.addWidget(self.choice(
+            "install", "Install SpeedyOS",
+            "Start the installer and set up\nSpeedyOS on this computer.", self.install))
+        layout.addLayout(buttons)
+
+        layout.addSpacing(12)
+        hint = QLabel("Esc: try SpeedyOS")
+        hint.setObjectName("hint")
+        hint.setAlignment(Qt.AlignCenter)
+        layout.addWidget(hint)
+
+        QShortcut(QKeySequence(Qt.Key_Escape), self, self.try_it)
+        self.apply_theme()
+
+    def choice(self, name, title, text, slot):
+        button = QPushButton(f"{title}\n\n{text}")
+        button.setObjectName(name)
+        button.setFixedSize(300, 150)
+        button.setCursor(Qt.PointingHandCursor)
+        button.clicked.connect(slot)
+        return button
+
+    def try_it(self):
+        self.close()
+
+    def install(self):
+        if not os.access(INSTALLER, os.X_OK) or not shutil.which("calamares"):
+            QMessageBox.warning(self, "SpeedyOS",
+                                "The installer (Calamares) is not available in this image.")
+            return
+        try:
+            subprocess.Popen([INSTALLER], start_new_session=True)
+        except OSError as e:
+            QMessageBox.critical(self, "SpeedyOS", f"Could not start the installer:\n{e}")
+            return
+        self.close()
+
+    def apply_theme(self):
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a1816;
+                color: #ede5dc;
+                font-size: 14px;
+            }
+            #title { font-size: 34px; font-weight: bold; color: #e0a060; }
+            #tagline { font-size: 17px; color: #c9a27e; }
+            #intro { color: #cfc4b8; }
+            #hint { font-size: 12px; color: #8a7d70; }
+            QPushButton {
+                border-radius: 14px;
+                padding: 16px;
+                font-size: 15px;
+                text-align: center;
+            }
+            #try {
+                background-color: #2a2420;
+                border: 2px solid #5a4a3c;
+                color: #ede5dc;
+            }
+            #try:hover, #try:focus { border-color: #c97d3e; }
+            #install {
+                background-color: #c97d3e;
+                border: 2px solid #c97d3e;
+                color: #1a1816;
+                font-weight: bold;
+            }
+            #install:hover, #install:focus { background-color: #e0a060; border-color: #e0a060; }
+        """)
+
+
+def main():
+    if not is_live():
+        return 0
+    app = QApplication(sys.argv)
+    app.setDesktopFileName("speedyos-try-install")
+    window = TryInstall()
+    window.showFullScreen()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

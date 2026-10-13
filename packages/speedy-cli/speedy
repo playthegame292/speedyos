@@ -1,0 +1,717 @@
+#!/usr/bin/env bash
+# SpeedyOS Command-Line Utility
+# Friendly wrapper for common system tasks. Every command maps to a normal
+# Arch tool (pacman, systemctl, ...) and prints what it is about to run.
+# Fast Paws. Arch Power.
+
+set -uo pipefail
+
+VERSION="0.3.0"
+
+# ---------------------------------------------------------------- output ---
+
+# Colors only on a terminal, and never when NO_COLOR is set (no-color.org).
+if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+    RED=$'\e[0;31m' GREEN=$'\e[0;32m' YELLOW=$'\e[1;33m' BLUE=$'\e[0;34m'
+    BROWN=$'\e[38;5;172m' BOLD=$'\e[1m' NC=$'\e[0m'
+else
+    RED='' GREEN='' YELLOW='' BLUE='' BROWN='' BOLD='' NC=''
+fi
+
+# Glyphs need a UTF-8 locale and a terminal that can draw them; the Linux
+# console (TERM=linux) can't, so fall back to plain ASCII there.
+if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* && ${TERM:-} != linux ]]; then
+    G_OK='✓' G_ERR='✗' G_WARN='!' G_INFO='i' G_PAW='🐾'
+else
+    G_OK='ok' G_ERR='x' G_WARN='!' G_INFO='i' G_PAW='*'
+fi
+
+error()   { printf '%s%s Error: %s%s\n' "$RED" "$G_ERR" "$*" "$NC" >&2; }
+die()     { error "$@"; exit 1; }
+warning() { printf '%s%s %s%s\n' "$YELLOW" "$G_WARN" "$*" "$NC" >&2; }
+success() { printf '%s%s %s%s\n' "$GREEN" "$G_OK" "$*" "$NC"; }
+info()    { printf '%s%s %s%s\n' "$BLUE" "$G_INFO" "$*" "$NC"; }
+paw()     { printf '%s%s %s%s\n' "$BROWN" "$G_PAW" "$*" "$NC"; }
+
+# --------------------------------------------------------------- helpers ---
+
+check_pacman() {
+    command -v pacman >/dev/null 2>&1 || die "pacman not found. Is this an Arch-based system?"
+}
+
+# Run a command as root: directly if we are root, otherwise through sudo.
+# The command is passed as an argument vector; nothing is ever eval'd.
+as_root() {
+    if (( EUID == 0 )); then
+        "$@"
+    else
+        command -v sudo >/dev/null 2>&1 || die "sudo is not installed; run this command as root."
+        sudo -- "$@"
+    fi
+}
+
+# Show the exact command line before running it.
+show_cmd() {
+    local prefix=''
+    (( EUID == 0 )) || prefix='sudo '
+    printf '%s  $ %s%s%s\n' "$BOLD" "$prefix" "$*" "$NC"
+}
+
+# Package names per Arch rules: lowercase alphanumerics and @._+-,
+# not starting with '-' or '.'. This also stops arguments from being
+# interpreted as pacman options.
+validate_pkgs() {
+    local verb=$1; shift
+    (( $# > 0 )) || die "No package specified. Usage: speedy ${verb} <package> [package...]"
+    local p
+    for p in "$@"; do
+        [[ $p =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]] \
+            || die "'${p}' is not a valid package name."
+    done
+}
+
+confirm() {
+    local reply
+    [[ -t 0 ]] || die "Confirmation needed but no terminal is attached."
+    read -r -p "$1 [y/N] " reply
+    [[ $reply =~ ^[Yy]([Ee][Ss])?$ ]]
+}
+
+is_live() { [[ -d /run/archiso ]]; }
+
+have_display() { [[ -n ${WAYLAND_DISPLAY:-} || -n ${DISPLAY:-} ]]; }
+
+speedyos_release() {
+    local f=/etc/speedyos-release
+    if [[ -r $f ]]; then
+        # shellcheck disable=SC1090
+        ( . "$f"; printf '%s' "${SPEEDYOS_VERSION:-unknown} \"${SPEEDYOS_CODENAME:-}\"" )
+    else
+        printf 'unknown'
+    fi
+}
+
+# -------------------------------------------------------------- commands ---
+
+cmd_help() {
+    cat <<EOF
+${BROWN}${G_PAW} SpeedyOS commands${NC}
+
+USAGE
+    speedy <command> [arguments]
+
+PACKAGES
+    update              Full system upgrade (pacman -Syu)
+    install <pkg...>    Install packages from the Arch repositories
+    remove <pkg...>     Remove packages (asks for confirmation first)
+    search <term...>    Search the repositories
+    clean               Trim the package cache (keeps 2 versions)
+    apps                Suggested applications
+
+SYSTEM
+    info                System and SpeedyOS information
+    doctor              Health check with suggestions
+    version             Version information
+
+DESKTOP
+    welcome             Open the SpeedyOS Welcome Center
+    installer           Start the installer (live session only)
+
+FUN
+    dance [seconds]     Speedy (in glasses) dances in rainbow colors
+    tricks              Other things Speedy can do
+
+    help                Show this help
+
+EXAMPLES
+    speedy update
+    speedy install firefox
+    speedy search chromium
+
+speedy only calls standard tools (pacman, systemctl, ...); it shows the
+exact command it runs, so you can always do the same thing by hand.
+
+${G_PAW} Fast Paws. Arch Power.
+EOF
+    special_day
+}
+
+cmd_version() {
+    echo "speedy ${VERSION}"
+    echo "SpeedyOS $(speedyos_release)"
+    if [[ -r /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        ( . /etc/os-release; echo "Base: ${PRETTY_NAME:-$NAME}" )
+    fi
+    echo "Kernel: $(uname -r)"
+}
+
+cmd_info() {
+    local host mem cpu cores disk de
+    host=$(cat /proc/sys/kernel/hostname 2>/dev/null || uname -n)
+    printf '%s%s SpeedyOS %s%s\n\n' "$BROWN$BOLD" "$G_PAW" "$(speedyos_release)" "$NC"
+    printf '%-14s %s\n' "Mode:" "$(is_live && echo 'Live session' || echo 'Installed system')"
+    [[ -r /etc/os-release ]] && printf '%-14s %s\n' "Base:" "$(. /etc/os-release; echo "${PRETTY_NAME:-$NAME}")"
+    printf '%-14s %s\n' "Kernel:" "$(uname -r)"
+    printf '%-14s %s\n' "Architecture:" "$(uname -m)"
+    printf '%-14s %s\n' "Hostname:" "$host"
+    printf '%-14s %s\n' "Uptime:" "$(uptime -p 2>/dev/null || echo unknown)"
+    de=${XDG_CURRENT_DESKTOP:-none}
+    [[ -n ${XDG_SESSION_TYPE:-} ]] && de+=" (${XDG_SESSION_TYPE})"
+    printf '%-14s %s\n' "Desktop:" "$de"
+    cpu=$(awk -F': ' '/^model name/ {print $2; exit}' /proc/cpuinfo 2>/dev/null)
+    cores=$(nproc 2>/dev/null || echo '?')
+    printf '%-14s %s\n' "CPU:" "${cpu:-unknown} (${cores} threads)"
+    mem=$(free -h 2>/dev/null | awk '/^Mem:/ {print $3 " / " $2}')
+    printf '%-14s %s\n' "Memory:" "${mem:-unknown}"
+    disk=$(df -h / 2>/dev/null | awk 'NR==2 {print $3 " / " $2 " (" $5 " used)"}')
+    printf '%-14s %s\n' "Disk (/):" "${disk:-unknown}"
+    if command -v pacman >/dev/null 2>&1; then
+        printf '%-14s %s\n' "Packages:" "$(pacman -Qq | wc -l)"
+    fi
+    echo
+    paw "Fast Paws. Arch Power."
+}
+
+cmd_update() {
+    check_pacman
+    (( $# == 0 )) || die "update takes no arguments."
+    paw "Updating SpeedyOS (full Arch system upgrade)..."
+    show_cmd pacman -Syu
+    as_root pacman -Syu || die "Update did not complete (pacman exit code $?)."
+    success "System is up to date."
+}
+
+cmd_install() {
+    check_pacman
+    validate_pkgs install "$@"
+    paw "Installing: $*"
+    show_cmd pacman -S --needed "$@"
+    as_root pacman -S --needed -- "$@" || die "Installation did not complete. Try 'speedy update' first if packages were not found."
+    success "Installed: $*"
+}
+
+cmd_remove() {
+    check_pacman
+    validate_pkgs remove "$@"
+    local p missing=()
+    for p in "$@"; do
+        pacman -Qq -- "$p" >/dev/null 2>&1 || missing+=("$p")
+    done
+    (( ${#missing[@]} == 0 )) || die "Not installed: ${missing[*]}"
+
+    warning "This removes: $*"
+    info "Dependencies that nothing else needs are removed too (pacman -Rs)."
+    info "Your personal files and settings in your home folder are not touched."
+    confirm "Remove these packages?" || { info "Cancelled; nothing was removed."; exit 0; }
+    show_cmd pacman -Rs "$@"
+    as_root pacman -Rs -- "$@" || die "Removal did not complete."
+    success "Removed: $*"
+}
+
+cmd_search() {
+    check_pacman
+    (( $# > 0 )) || die "No search term. Usage: speedy search <term>"
+    local t
+    for t in "$@"; do
+        [[ $t != -* ]] || die "Search terms cannot start with '-'."
+    done
+    paw "Searching for: $*"
+    pacman -Ss -- "$@" || info "No packages found. Repository data may be old: try 'speedy update'."
+}
+
+cmd_doctor() {
+    local issues=0 n
+    paw "Speedy doctor: checking your system..."
+    echo
+
+    info "Package database"
+    if ! command -v pacman >/dev/null 2>&1; then
+        warning "pacman is missing"; issues=$((issues + 1))
+    elif pacman -Dk >/dev/null 2>&1; then
+        success "Package database is consistent"
+    else
+        warning "Package database has problems. Details: pacman -Dk"
+        issues=$((issues + 1))
+    fi
+
+    if [[ -e /var/lib/pacman/db.lck ]] && ! pgrep -x pacman >/dev/null 2>&1; then
+        warning "Stale pacman lock (/var/lib/pacman/db.lck) but pacman is not running."
+        info "  If no update is running: sudo rm /var/lib/pacman/db.lck"
+        issues=$((issues + 1))
+    fi
+
+    info "System services"
+    n=$(systemctl --failed --no-legend --plain 2>/dev/null | grep -c .)
+    if (( n == 0 )); then
+        success "No failed services"
+    else
+        warning "${n} failed service(s):"
+        systemctl --failed --no-legend --plain 2>/dev/null | sed 's/^/    /'
+        info "  Inspect one with: journalctl -b -u <service>"
+        issues=$((issues + 1))
+    fi
+
+    info "Disk space"
+    n=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+    if [[ -z $n ]]; then
+        warning "Could not read disk usage"
+    elif (( n < 90 )); then
+        success "Root filesystem ${n}% used"
+    else
+        warning "Root filesystem ${n}% used. 'speedy clean' frees package cache."
+        issues=$((issues + 1))
+    fi
+
+    info "Orphaned packages"
+    n=$(pacman -Qtdq 2>/dev/null | grep -c .)
+    if (( n == 0 )); then
+        success "No orphaned packages"
+    else
+        warning "${n} package(s) installed as dependencies but no longer needed."
+        info "  Review: pacman -Qtd    Remove: sudo pacman -Rns \$(pacman -Qtdq)"
+    fi
+
+    info "Network"
+    if command -v nmcli >/dev/null 2>&1 && [[ $(nmcli -t -f STATE general 2>/dev/null) != connected* ]]; then
+        warning "NetworkManager reports no connection. Connect via the network icon or 'nmtui'."
+        issues=$((issues + 1))
+    elif getent ahosts archlinux.org >/dev/null 2>&1; then
+        success "DNS works (archlinux.org resolves)"
+    else
+        warning "Cannot resolve archlinux.org. Check your connection."
+        issues=$((issues + 1))
+    fi
+
+    if ! is_live; then
+        info "Updates"
+        if command -v checkupdates >/dev/null 2>&1; then
+            n=$(checkupdates 2>/dev/null | grep -c .)
+            if (( n == 0 )); then
+                success "No pending updates (or repositories unreachable)"
+            else
+                warning "${n} update(s) available. Run: speedy update"
+            fi
+        else
+            info "  Skipped: install pacman-contrib for the update check."
+        fi
+    fi
+
+    echo
+    if (( issues == 0 )); then
+        paw "All good. Good dog."
+    else
+        paw "${issues} issue(s) need attention (see above)."
+    fi
+    (( issues == 0 ))
+}
+
+cmd_clean() {
+    check_pacman
+    if command -v paccache >/dev/null 2>&1; then
+        warning "Removes cached package files, keeping the 2 newest versions of each."
+        info "Installed software is not affected."
+        paccache -dk2 2>/dev/null | tail -n 1
+        confirm "Clean the package cache?" || { info "Cancelled."; exit 0; }
+        show_cmd paccache -rk2
+        as_root paccache -rk2
+        show_cmd paccache -ruk0
+        as_root paccache -ruk0
+    else
+        warning "paccache (pacman-contrib) not found; using pacman -Sc instead."
+        info "That removes cached files of packages that are no longer installed."
+        show_cmd pacman -Sc
+        as_root pacman -Sc
+    fi
+    success "Package cache cleaned."
+}
+
+cmd_apps() {
+    cat <<EOF
+${BROWN}${G_PAW} Suggested applications${NC}  (install with: speedy install <name>)
+
+INTERNET      firefox  chromium  thunderbird  qbittorrent
+MEDIA         vlc  mpv  elisa  obs-studio  kdenlive  audacity
+GRAPHICS      gimp  krita  inkscape
+OFFICE        libreoffice-fresh  okular
+DEVELOPMENT   code  git  base-devel  podman
+GAMING        steam (needs [multilib] enabled in /etc/pacman.conf)
+
+Search for more: speedy search <word>
+EOF
+}
+
+cmd_welcome() {
+    have_display || die "No graphical session found. The Welcome Center needs the desktop."
+    command -v speedyos-welcome >/dev/null 2>&1 || die "The Welcome Center (speedy-welcome) is not installed."
+    info "Opening the SpeedyOS Welcome Center..."
+    setsid -f speedyos-welcome >/dev/null 2>&1
+}
+
+cmd_installer() {
+    is_live || die "The installer only runs from the SpeedyOS live session. SpeedyOS is already installed here."
+    have_display || die "No graphical session found. The installer needs the desktop."
+    command -v speedyos-installer >/dev/null 2>&1 || die "Installer launcher not found in this image."
+    paw "Starting the SpeedyOS installer..."
+    setsid -f speedyos-installer >/dev/null 2>&1
+}
+
+# ------------------------------------------------------------- just fun ---
+# Easter eggs. None of these touch the system; the only file written is the
+# treat counter in the user's state directory.
+
+# Read a here-doc into the named array, one element per line.
+lines_into() { mapfile -t "$1"; }
+
+lines_into DANCE_HEAD <<'ART'
+          .-~~~~~~~~-.
+      .--/            \--.
+     /  /              \  \
+    |  |  [(o)]--[(o)]  |  |
+    |  |       __       |  |
+     \ |      (__)      | /
+      \|    \_/  \_/    |/
+       '.     \__/     .'
+ART
+lines_into DANCE_ARMS_UU <<'ART'
+   (o)   '-.________.-'   (o)
+     \\    .--------.    //
+      \\  /  ......  \  //
+       \\/   :    :   \//
+         |   '....'   |
+          \__________/
+ART
+lines_into DANCE_ARMS_UD <<'ART'
+   (o)   '-.________.-'
+     \\    .--------.
+      \\  /  ......  \
+       \\/   :    :   \\
+         |   '....'   |\\
+          \__________/  (o)
+ART
+lines_into DANCE_ARMS_DU <<'ART'
+         '-.________.-'   (o)
+           .--------.    //
+          /  ......  \  //
+        //   :    :   \//
+      //|   '....'   |
+   (o)   \__________/
+ART
+lines_into DANCE_ARMS_DD <<'ART'
+         '-.________.-'
+           .--------.
+          /  ......  \
+        //   :    :   \\
+      //|   '....'   |\\
+   (o)   \__________/  (o)
+ART
+lines_into DANCE_LEGS_N <<'ART'
+           |   ||   |
+          _|   ||   |_
+         (____/  \____)
+ART
+lines_into DANCE_LEGS_R <<'ART'
+           |   |\  \
+          _|   | \  \__
+         (____/   \____)
+ART
+lines_into DANCE_LEGS_L <<'ART'
+            /  /|   |
+         __/  / |   |_
+        (____/   \____)
+ART
+
+# Rainbow palettes: 256-color (lolcat-style) and the 6 basic ANSI colors for
+# the Linux console.
+RAINBOW_256=(196 202 208 214 220 226 190 154 118 82 46 47 48 49 50 51
+             45 39 33 27 21 57 93 129 165 201 200 199 198 197)
+RAINBOW_16=(31 33 32 36 34 35)
+
+# Print one line in rainbow colors. $1 = text, $2 = color phase.
+rainbow_line() {
+    local text=$1 phase=$2 out='' ch i n code
+    if [[ -z $NC ]]; then printf '%s' "$text"; return; fi
+    if [[ ${TERM:-} == linux ]]; then n=${#RAINBOW_16[@]}; else n=${#RAINBOW_256[@]}; fi
+    for (( i = 0; i < ${#text}; i++ )); do
+        ch=${text:i:1}
+        if [[ $ch == ' ' ]]; then out+=' '; continue; fi
+        if [[ ${TERM:-} == linux ]]; then
+            code="1;${RAINBOW_16[( (i / 3 + phase) % n )]}"
+        else
+            code="1;38;5;${RAINBOW_256[( (i / 2 + phase) % n )]}"
+        fi
+        out+=$'\e['"${code}m${ch}"
+    done
+    printf '%s%s' "$out" "$NC"
+}
+
+# Build dance frame $1 (0-3) into the DANCE_FRAME array.
+dance_frame() {
+    local -n arms legs
+    case $1 in
+        0) arms=DANCE_ARMS_UU legs=DANCE_LEGS_N ;;
+        1) arms=DANCE_ARMS_UD legs=DANCE_LEGS_R ;;
+        2) arms=DANCE_ARMS_DD legs=DANCE_LEGS_N ;;
+        3) arms=DANCE_ARMS_DU legs=DANCE_LEGS_L ;;
+    esac
+    DANCE_FRAME=("${DANCE_HEAD[@]}" "${arms[@]}" "${legs[@]}")
+    # Wink on the third beat.
+    (( $1 == 2 )) && DANCE_FRAME[3]=${DANCE_FRAME[3]/'[(o)]--[(o)]'/'[(o)]--[(-)]'}
+}
+
+cmd_dance() {
+    local seconds=${1:-0}
+    [[ $seconds =~ ^[0-9]+$ ]] || die "Usage: speedy dance [seconds]  (default: until you press a key)"
+
+    # Not a terminal (pipe, file): one still frame, no escape codes.
+    if [[ ! -t 1 || ! -t 0 ]]; then
+        dance_frame 0
+        printf '%s\n' "${DANCE_FRAME[@]}"
+        echo "  Speedy is dancing. (Run it in a terminal to see the moves.)"
+        return 0
+    fi
+
+    local rows cols
+    read -r rows cols < <(stty size 2>/dev/null || echo '24 80')
+    local captions=('~ beagle boogie ~' '~ paws in the air ~' '~ wiggle wiggle ~'
+                    '~ zoomies mode ~' '~ who let the dog out ~' '~ fast paws ~')
+    local sways=(4 6 4 2) floor='=-' tick=0 start=$SECONDS key
+    local height=$(( ${#DANCE_HEAD[@]} + ${#DANCE_ARMS_UU[@]} + ${#DANCE_LEGS_N[@]} + 5 ))
+    local top=$(( rows > height ? (rows - height) / 2 : 0 ))
+    local left=$(( cols > 40 ? (cols - 40) / 2 : 0 ))
+    local pad
+    printf -v pad '%*s' "$left" ''
+
+    # Alternate screen, hidden cursor; always restored, even on Ctrl+C.
+    local saved_stty
+    saved_stty=$(stty -g)
+    trap 'printf "\e[?25h\e[?1049l"; stty "$saved_stty"; trap - INT TERM EXIT' EXIT
+    trap 'exit 0' INT TERM
+    stty -echo -icanon
+    printf '\e[?1049h\e[?25l\e[2J'
+
+    local f line i out sway
+    while :; do
+        f=$(( tick % 4 ))
+        dance_frame "$f"
+        sway=${sways[f]}
+        out=$'\e[H'
+        for (( i = 0; i < top; i++ )); do out+=$'\e[K\n'; done
+        out+="$pad"$'\e[K'$(rainbow_line "$(printf '%*s' $(( 10 + (tick % 2) * 2 )) '')${captions[(tick / 4) % ${#captions[@]}]}" "$tick")$'\n\e[K\n'
+        for line in "${DANCE_FRAME[@]}"; do
+            out+="$pad"$'\e[K'"$(rainbow_line "$(printf '%*s' "$sway" '')$line" "$(( tick + i++ ))")"$'\n'
+        done
+        if (( tick % 2 )); then floor='-='; else floor='=-'; fi
+        out+="$pad"$'\e[K'"$(rainbow_line "$(printf "%0.s$floor" {1..18})" "$tick")"$'\n\e[K\n'
+        out+="$pad"$'\e[K'"${BOLD}Speedy is dancing.${NC} Press any key to stop."$'\e[J'
+        printf '%s' "$out"
+        (( tick++ ))
+        if (( seconds > 0 && SECONDS - start >= seconds )); then break; fi
+        if read -rsn1 -t 0.12 key; then break; fi
+    done
+    exit 0
+}
+
+cmd_bark() {
+    local barks=('Woof!' 'Arooo-ooo-ooo!' 'Bark bark bark!' 'Bork.' 'Yip!'
+                 '*sniff sniff* ...WOOF!' 'Ruff! (translation: is that a sandwich?)')
+    paw "${barks[RANDOM % ${#barks[@]}]}"
+}
+
+treat_file() { printf '%s/speedy/treats' "${XDG_STATE_HOME:-$HOME/.local/state}"; }
+
+cmd_treat() {
+    local file count=0
+    file=$(treat_file)
+    [[ -r $file ]] && read -r count <"$file"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+    (( count++ ))
+    mkdir -p -- "${file%/*}" && printf '%s\n' "$count" >"$file"
+    case $count in
+        1)   paw "Speedy gobbles the treat. Speedy loves you now. Forever." ;;
+        2|3) paw "Treat #${count}. Tail is wagging at maximum speed." ;;
+        10)  paw "Treat #10! Speedy is a very round beagle now. Maybe a walk?" ;;
+        42)  paw "Treat #42. The answer to life, the universe and snacks." ;;
+        100) paw "Treat #100. Speedy has achieved snack enlightenment." ;;
+        *)   paw "Treat #${count}. Speedy would like another one, please." ;;
+    esac
+}
+
+cmd_wisdom() {
+    local sayings=(
+        'If you cannot eat it or chase it, pee on it and walk away.'
+        'Every walk is the best walk.'
+        'Sniff first. Ask questions never.'
+        'A closed door is just a door you have not whined at long enough.'
+        'Fast paws, slow naps.'
+        'The couch is yours. You just let the humans use it.'
+        'Always update your system. Then nap.'
+        'There is no such thing as a small snack. Only small dogs.'
+        'Read the Arch Wiki. Then chew on it.'
+    )
+    paw "Speedy says: ${sayings[RANDOM % ${#sayings[@]}]}"
+}
+
+# Pause only when a human is watching.
+beat() { [[ -t 1 ]] && sleep "${1:-0.6}"; return 0; }
+
+cmd_fetch() {
+    local thing=''
+    command -v pacman >/dev/null 2>&1 && thing=$(pacman -Qq 2>/dev/null | shuf -n1)
+    info "You throw the stick..."; beat
+    info "Speedy runs after it..."; beat
+    info "Speedy is sniffing around in /usr..."; beat 0.9
+    paw "Speedy proudly brings back: ${BOLD}${thing:-a slightly chewed sock}${NC}${BROWN}"
+}
+
+cmd_sit() {
+    cat <<'ART'
+       __
+   .--'  `--.
+  ( [o]-[o]  )
+   \   ^^   /
+    | '--' |___
+    |           \
+    |  |  |  |   )
+    (__|__|__|__/
+ART
+    paw "Speedy sits. Good dog."
+}
+
+cmd_stay() {
+    info "Stay..."; beat 1
+    info "Staaay..."; beat 1
+    if (( RANDOM % 3 )); then
+        paw "Speedy did not stay. Speedy is a beagle. Speedy smelled something."
+    else
+        paw "Speedy stayed! This has never happened before. Good dog!"
+    fi
+}
+
+cmd_roll() {
+    cat <<'ART'
+     (\_/)    _____
+  ~ ( o-o )--/     \--~
+     \_^_/  ( belly )
+      U U    \_____/
+ART
+    paw "Speedy rolls over. Belly rub requested."
+}
+
+cmd_moo() {
+    cat <<'ART'
+         (__)
+         (oo)    <- not Speedy
+   /------\/
+  / |    ||
+ *  /\---/\
+    ~~   ~~
+ART
+    paw "This system has no Super Cow Powers. It has Super Nose Powers."
+}
+
+# A small beagle (with glasses) runs across the terminal.
+zoomies() {
+    local -a a=('             .--.  ' '  -=-\_____/ o-o\_ ' '  -=-(        __O)' '      / /  \ \    ')
+    local -a b=('             .--.  ' ' =-=-\_____/ o-o\_ ' ' =-=-(        __O)' '     \ \    / /   ')
+    if [[ ! -t 1 ]]; then printf '%s\n' "${a[@]}"; return; fi
+    local cols x i
+    cols=$(stty size 2>/dev/null </dev/tty | cut -d' ' -f2)
+    cols=${cols:-80}
+    printf '\e[?25l'
+    for (( x = 0; x < cols - 20; x += 3 )); do
+        local -a spr=("${a[@]}")
+        (( (x / 3) % 2 )) && spr=("${b[@]}")
+        for i in 0 1 2 3; do printf '\r\e[K%*s%s\n' "$x" '' "${BROWN}${spr[i]}${NC}"; done
+        printf '\e[4A'
+        sleep 0.04
+    done
+    printf '\e[4B\r\e[?25h'
+}
+
+cmd_zoomies() { zoomies; paw "ZOOMIES! Speedy has reached maximum velocity."; }
+
+cmd_squirrel() {
+    printf '%s\n' "${YELLOW}${BOLD}SQUIRREL!!!${NC}"
+    zoomies
+    paw "...sorry, what were we doing?"
+}
+
+cmd_goodboy() {
+    cat <<'ART'
+      __
+   .-'  '-.      wag
+  ( [o]-[o] )   wag
+   \  (__)  /---~~~
+    '------'
+ART
+    paw "Speedy knows. Speedy has always known."
+}
+
+cmd_tricks() {
+    cat <<EOF
+${BROWN}${G_PAW} Speedy's tricks${NC}
+
+    speedy dance     rainbow dance party (press a key to stop)
+    speedy bark      say something
+    speedy sit       sit
+    speedy stay      try to stay
+    speedy roll      roll over
+    speedy fetch     fetch something from your system
+    speedy treat     give Speedy a treat (Speedy keeps count)
+    speedy zoomies   run around very fast
+    speedy wisdom    beagle wisdom
+
+There are a few more. Good dogs sniff them out.
+EOF
+}
+
+# Special days, shown by "speedy help".
+special_day() {
+    case $(date +%m-%d) in
+        08-26) paw "Happy International Dog Day! Give a good dog a treat: speedy treat" ;;
+        10-31) paw "Happy Halloween! Speedy is dressed as a slightly larger beagle." ;;
+        04-01) paw "Speedy is now a cat. Meow. (Just kidding. Woof.)" ;;
+        12-25) paw "Merry Christmas! Speedy already opened all the presents. Sorry." ;;
+    esac
+}
+
+# -------------------------------------------------------------- dispatch ---
+
+main() {
+    (( $# > 0 )) || { cmd_help; exit 0; }
+    local command=$1; shift
+    case $command in
+        help|--help|-h)       cmd_help ;;
+        version|--version|-V) cmd_version ;;
+        info)                 cmd_info ;;
+        update|upgrade)       cmd_update "$@" ;;
+        install)              cmd_install "$@" ;;
+        remove|uninstall)     cmd_remove "$@" ;;
+        search)               cmd_search "$@" ;;
+        doctor)               cmd_doctor ;;
+        clean)                cmd_clean ;;
+        apps)                 cmd_apps ;;
+        welcome)              cmd_welcome ;;
+        installer)            cmd_installer ;;
+        dance|boogie|party)   cmd_dance "$@" ;;
+        tricks)               cmd_tricks ;;
+        bark|woof)            cmd_bark ;;
+        treat|snack)          cmd_treat ;;
+        wisdom|fortune)       cmd_wisdom ;;
+        fetch)                cmd_fetch ;;
+        sit)                  cmd_sit ;;
+        stay)                 cmd_stay ;;
+        roll|rollover)        cmd_roll ;;
+        zoomies|run)          cmd_zoomies ;;
+        squirrel)             cmd_squirrel ;;
+        moo)                  cmd_moo ;;
+        goodboy|gooddog|good) cmd_goodboy ;;
+        pet)                  paw "Speedy leans into your hand. Tail: wagging." ;;
+        sudo)                 paw "Speedy does not need sudo. Speedy has root on the couch." ;;
+        meow)                 paw "...Speedy stares at you, deeply confused." ;;
+        *) error "Unknown command: ${command}"; echo "Run 'speedy help' for the list of commands." >&2; exit 2 ;;
+    esac
+}
+
+main "$@"

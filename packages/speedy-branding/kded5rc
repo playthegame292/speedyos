@@ -1,0 +1,4 @@
+# SpeedyOS: the SpeedyOS Welcome Center replaces KDE's first-login welcome app.
+# (kded6 still reads the kded5rc file name.)
+[Module-kded_plasma_welcome]
+autoload=false
