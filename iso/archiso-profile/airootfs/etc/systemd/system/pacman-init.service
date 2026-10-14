@@ -1,13 +1,16 @@
 [Unit]
 Description=Initializes Pacman keyring
 Requires=etc-pacman.d-gnupg.mount
-After=etc-pacman.d-gnupg.mount time-sync.target
+After=etc-pacman.d-gnupg.mount
 BindsTo=etc-pacman.d-gnupg.mount
 Before=archlinux-keyring-wkd-sync.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# Keyring setup is not needed to reach the desktop; keep it out of the way.
+Nice=19
+IOSchedulingClass=idle
 ExecStart=/usr/bin/pacman-key --init
 ExecStart=/usr/bin/pacman-key --populate
 

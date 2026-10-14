@@ -1,0 +1,7 @@
+# The live image boots as "first boot" every time, so systemd applies presets.
+# NetworkManager handles networking; systemd-networkd and its wait-online
+# service only add boot time and fight NetworkManager over interfaces.
+disable systemd-networkd.service
+disable systemd-networkd.socket
+disable systemd-networkd-wait-online.service
+disable systemd-time-wait-sync.service

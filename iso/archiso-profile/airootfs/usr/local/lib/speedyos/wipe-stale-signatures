@@ -1,0 +1,36 @@
+#!/bin/bash
+# Remove leftover filesystem signatures from the partitions Calamares just
+# formatted. mkfs.btrfs leaves an old ext4 superblock (offset 0x438) in place,
+# so blkid and grub-probe see two filesystems on the root partition and
+# grub-mkconfig fails with exit 32. Runs outside the chroot, after "mount".
+#
+# Usage: wipe-stale-signatures ROOT_MOUNTPOINT
+
+set -euo pipefail
+root=$(realpath -- "${1:?usage: $0 ROOT_MOUNTPOINT}")
+
+# The live medium (and the whole disk it is on) is never touched.
+live_disks=$(findmnt -rn -o SOURCE /run/archiso/bootmnt 2>/dev/null \
+    | xargs -r lsblk -rnso NAME 2>/dev/null | sed 's|^|/dev/|' || true)
+
+# Filesystems mounted at or below the target, excluding the API/bind mounts
+# Calamares adds (dev, proc, sys, run, tmp). Btrfs subvolume mounts show up as
+# /dev/X[/@home]; strip the suffix.
+findmnt -rn -o TARGET,SOURCE,FSTYPE | while read -r target src fstype; do
+    if [ "$target" = "$root" ]; then rel=/
+    elif [ "${target#"$root"/}" != "$target" ]; then rel=/${target#"$root"/}
+    else continue
+    fi
+    case $rel/ in /dev/*|/proc/*|/sys/*|/run/*|/tmp/*) continue ;; esac
+    case $fstype in btrfs|ext4|xfs|f2fs) ;; *) continue ;; esac
+    dev=${src%%\[*}
+    [ -b "$dev" ] || continue
+    grep -qxF -- "$dev" <<< "$live_disks" && continue
+    echo "$dev $fstype"
+done | sort -u | while read -r dev fstype; do
+    # Erase every signature except the one this partition is formatted with.
+    if [ -n "$(wipefs -n -t "no$fstype" "$dev")" ]; then
+        echo "Removing stale signatures from $dev (keeping $fstype):"
+        wipefs --force -a -t "no$fstype" "$dev"
+    fi
+done

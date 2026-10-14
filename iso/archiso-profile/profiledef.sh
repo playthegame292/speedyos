@@ -24,6 +24,7 @@ file_permissions=(
   ["/usr/local/bin/speedyos-installer"]="0:0:755"
   ["/usr/local/bin/speedyos-try-install"]="0:0:755"
   ["/usr/local/lib/speedyos/finalize-install"]="0:0:755"
+  ["/usr/local/lib/speedyos/wipe-stale-signatures"]="0:0:755"
   ["/etc/skel/Desktop/speedyos-welcome.desktop"]="0:0:755"
   ["/home/speedyuser"]="1000:1000:755"
   ["/home/speedyuser/Desktop"]="1000:1000:755"

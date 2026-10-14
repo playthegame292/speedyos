@@ -105,6 +105,9 @@ case $mode in
         used=$(qemu-img info --output=json "$DISK" | sed -n 's/.*"actual-size": *\([0-9]*\).*/\1/p' | head -n1)
         [ "${used:-0}" -gt 100000000 ] || fail "nothing is installed on the test disk yet.
   Run '$0 install', choose \"Install SpeedyOS\" and finish the installer first."
+        # UEFI and BIOS installs live on separate disks; say which one this is.
+        echo "Test disk: $DISK (last written $(date -r "$DISK" '+%Y-%m-%d %H:%M'))"
+        echo "  (UEFI and --bios installs use different disks; use the same option you installed with)"
         args+=("${disk[@]/BOOTINDEX/0}") ;;
     *) usage 1 ;;
 esac
