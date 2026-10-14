@@ -348,12 +348,12 @@
           <p class="sub">Live / install image for 64-bit PCs. UEFI and legacy BIOS boot entries.</p>
           <dl class="facts">
             <div><dt>File</dt><dd class="file-name" data-release="file">speedyos-2026.10.14-x86_64.iso</dd></div>
-            <div><dt>Size</dt><dd data-release="size">2.74 GiB</dd></div>
+            <div><dt>Size</dt><dd data-release="size">2.50 GiB</dd></div>
             <div><dt>Built</dt><dd data-release="date">2026-10-14</dd></div>
             <div><dt>Architecture</dt><dd>x86_64</dd></div>
           </dl>
           <div id="dl-buttons" class="dl-buttons">
-            <noscript><a class="btn btn-primary btn-lg" href="https://github.com/playthegame292/speedyos/releases/latest">Download from GitHub Releases</a></noscript>
+            <noscript><a class="btn btn-primary btn-lg" href="https://github.com/playthegame292/speedyos/releases">Download from GitHub Releases</a></noscript>
           </div>
           <div id="dl-status" class="status" role="status"><span class="ok" aria-hidden="true"></span><span></span></div>
           <div id="join" class="join" hidden>
@@ -367,7 +367,7 @@
         <div class="dl-side">
           <span class="label" id="sha-label">SHA-256 checksum</span>
           <div class="hash">
-            <code id="sha" aria-labelledby="sha-label" data-release="sha256">Not published yet</code>
+            <code id="sha" aria-labelledby="sha-label" data-release="sha256">57cc583e07ae440c707ea324442fd0541be6562875631532f832be7b83e34604</code>
             <button class="copy" type="button" data-copy="sha" aria-label="Copy SHA-256 checksum"><svg aria-hidden="true"><use href="#copy"/></svg><span>Copy</span></button>
           </div>
           <div class="verify">
@@ -633,10 +633,13 @@ sudo pacman -S --needed archiso arch-install-scripts squashfs-tools \
     codename: "Beagle Run",
     date:     "2026-10-14",
     file:     "speedyos-2026.10.14-x86_64.iso",
-    bytes:    0,
-    sha256:   "",
-    baseUrl:  "",
-    parts: []
+    bytes:    2685698048,
+    sha256:   "57cc583e07ae440c707ea324442fd0541be6562875631532f832be7b83e34604",
+    baseUrl:  "https://github.com/playthegame292/speedyos/releases/download/v2026.10.14/",
+    parts: [
+      { name: "speedyos-2026.10.14-x86_64.iso.part1", bytes: 1342849024 },
+      { name: "speedyos-2026.10.14-x86_64.iso.part2", bytes: 1342849024 }
+    ]
   };
 
   document.body.classList.remove("no-js");
