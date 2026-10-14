@@ -353,7 +353,7 @@
             <div><dt>Architecture</dt><dd>x86_64</dd></div>
           </dl>
           <div id="dl-buttons" class="dl-buttons">
-            <noscript><a class="btn btn-primary btn-lg" href="https://github.com/playthegame292/speedyos/releases">Download from GitHub Releases</a></noscript>
+            <noscript><a class="btn btn-primary btn-lg" href="https://github.com/playthegame292/speedyos/releases/tag/v2026.10.14">Download from GitHub Releases</a></noscript>
           </div>
           <div id="dl-status" class="status" role="status"><span class="ok" aria-hidden="true"></span><span></span></div>
           <div id="join" class="join" hidden>
@@ -668,20 +668,19 @@ sudo pacman -S --needed archiso arch-install-scripts squashfs-tools \
       shaFile.hidden = true;
       return;
     }
-    const icon = '<svg aria-hidden="true"><use href="#dl"/></svg>';
+    // The download button opens the release page on GitHub, where the files are listed.
+    const releasePage = RELEASE.baseUrl.replace("/releases/download/", "/releases/tag/").replace(/\/$/, "");
     const split = RELEASE.parts.length > 1;
+    const a = document.createElement("a");
+    a.className = "btn btn-primary btn-lg";
+    a.href = releasePage;
+    a.innerHTML = '<svg aria-hidden="true"><use href="#dl"/></svg><span>Download from GitHub <small>' + gib(RELEASE.bytes) + "</small></span>";
+    a.setAttribute("aria-label", "Download SpeedyOS " + RELEASE.version + " from GitHub Releases, " + gib(RELEASE.bytes));
     box.innerHTML = "";
-    RELEASE.parts.forEach((p, i) => {
-      const a = document.createElement("a");
-      a.className = "btn btn-primary btn-lg";
-      a.href = RELEASE.baseUrl + p.name;
-      a.innerHTML = icon + "<span>" + (split ? "Download part " + (i + 1) : "Download SpeedyOS") + " <small>" + gib(p.bytes) + "</small></span>";
-      a.setAttribute("aria-label", "Download " + p.name + ", " + gib(p.bytes));
-      box.appendChild(a);
-    });
+    box.appendChild(a);
     shaFile.href = RELEASE.baseUrl + RELEASE.file + ".sha256";
     status.lastElementChild.textContent = split
-      ? "ISO available in " + RELEASE.parts.length + " parts · join them after downloading"
+      ? "Opens GitHub Releases · download all " + RELEASE.parts.length + " parts, then join them"
       : "ISO available · verify the checksum after downloading";
     if (split) {
       const names = RELEASE.parts.map(p => p.name);
