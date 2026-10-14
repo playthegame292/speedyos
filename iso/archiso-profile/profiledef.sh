@@ -3,7 +3,7 @@
 
 iso_name="speedyos"
 iso_label="SPEEDY_$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y%m)"
-iso_publisher="SpeedyOS <https://github.com/sebytremblay/speedyos>"
+iso_publisher="SpeedyOS <https://github.com/playthegame292/speedyos>"
 iso_application="SpeedyOS Live/Install DVD"
 iso_version="$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y.%m.%d)"
 install_dir="speedyos"

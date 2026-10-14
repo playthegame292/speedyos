@@ -4,7 +4,7 @@
 
 <img src="artwork/branding/speedyos-badge.png" alt="SpeedyOS badge" width="160">
 
-SpeedyOS is a fast, friendly, and polished Arch Linux-based distribution inspired by Seby's beagle. Built on the solid foundation of Arch Linux with KDE Plasma 6, SpeedyOS delivers a welcoming desktop experience with beagle-themed branding and intuitive command-line tools.
+SpeedyOS is a fast, friendly, and polished Arch Linux-based distribution inspired by bundle223's beagle. Built on the solid foundation of Arch Linux with KDE Plasma 6, SpeedyOS delivers a welcoming desktop experience with beagle-themed branding and intuitive command-line tools.
 
 ## Features
 
@@ -106,7 +106,7 @@ SpeedyOS is free and open source software. See [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-SpeedyOS is a personal project by Seby. Contributions, suggestions, and feedback are welcome!
+SpeedyOS is a personal project by bundle223. Contributions, suggestions, and feedback are welcome!
 
 ---
 

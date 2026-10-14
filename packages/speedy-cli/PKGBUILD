@@ -1,10 +1,10 @@
-# Maintainer: Seby <seby@speedyos>
+# Maintainer: bundle223 <bundle223@speedyos>
 pkgname=speedy-cli
 pkgver=0.4.0
-pkgrel=1
+pkgrel=2
 pkgdesc="SpeedyOS command-line companion (speedy) - friendly wrappers around pacman and systemd"
 arch=('any')
-url="https://github.com/sebytremblay/speedyos"
+url="https://github.com/playthegame292/speedyos"
 license=('MIT')
 depends=('bash' 'pacman' 'systemd' 'coreutils' 'procps-ng' 'util-linux' 'sudo' 'pciutils' 'pacman-contrib' 'fakeroot' 'libnotify')
 optdepends=(

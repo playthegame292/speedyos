@@ -16,11 +16,11 @@ strings:
     versionedName:       SpeedyOS 2026.10 "Beagle Run"
     shortVersionedName:  SpeedyOS 2026.10
     bootloaderEntryName: SpeedyOS
-    productUrl:          https://github.com/sebytremblay/speedyos
-    supportUrl:          https://github.com/sebytremblay/speedyos
-    knownIssuesUrl:      https://github.com/sebytremblay/speedyos
-    releaseNotesUrl:     https://github.com/sebytremblay/speedyos
-    donateUrl:           https://github.com/sebytremblay/speedyos
+    productUrl:          https://github.com/playthegame292/speedyos
+    supportUrl:          https://github.com/playthegame292/speedyos
+    knownIssuesUrl:      https://github.com/playthegame292/speedyos
+    releaseNotesUrl:     https://github.com/playthegame292/speedyos
+    donateUrl:           https://github.com/playthegame292/speedyos
 
 images:
     productLogo:         "speedyos-logo.png"

@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpeedyOS — Fast Paws. Arch Power.</title>
+<meta name="description" content="SpeedyOS is a friendly Arch Linux-based distribution with KDE Plasma 6, a graphical installer, Btrfs snapshots and the speedy command. Inspired by Speedy the beagle.">
+<meta name="theme-color" content="#141210">
+<link rel="icon" type="image/png" href="assets/speedyos-icon-64.png">
+<style>
+  /* ---- Brand tokens (from packages/speedy-branding and artwork/*.py) ---- */
+  :root {
+    --bg: #110f0d;
+    --bg-2: #1a1816;
+    --surface: #221e1a;
+    --surface-2: #2a2520;
+    --line: rgba(237, 229, 220, .10);
+    --line-strong: rgba(224, 160, 96, .35);
+    --text: #ede5dc;
+    --muted: #b9ab9c;
+    --amber: #e0a060;
+    --amber-deep: #c97d3e;
+    --tan: #c9a27e;
+    --chocolate: #8a5a32;
+    --glow: rgba(224, 160, 96, .45);
+    --ok: #9fd39a;
+    --radius: 18px;
+    --sans: system-ui, -apple-system, "Segoe UI", "Noto Sans", Roboto, Ubuntu, Cantarell, sans-serif;
+    --mono: ui-monospace, "JetBrains Mono", "Fira Code", "Cascadia Code", "Noto Sans Mono", Menlo, Consolas, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 var(--sans);
+    overflow-x: hidden;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: var(--amber); text-underline-offset: 3px; }
+  a:hover { color: #f2bd85; }
+  code, kbd, pre { font-family: var(--mono); }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
+
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--amber); color: #1a1208; padding: 8px 14px; border-radius: 8px; z-index: 100; font-weight: 700; }
+  .skip:focus { left: 16px; }
+
+  .wrap { width: min(1160px, 100% - 32px); margin-inline: auto; }
+
+  /* ---- Ambient background ---- */
+  .sky { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .sky::before {
+    content: ""; position: absolute; inset: -20%;
+    background:
+      radial-gradient(40% 35% at 75% 15%, rgba(201,125,62,.28), transparent 70%),
+      radial-gradient(35% 30% at 10% 40%, rgba(138,90,50,.30), transparent 70%),
+      radial-gradient(45% 40% at 50% 110%, rgba(224,160,96,.14), transparent 70%);
+    animation: drift 26s ease-in-out infinite alternate;
+  }
+  .sky::after {
+    content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(70% 55% at 50% 20%, #000 10%, transparent 75%);
+    -webkit-mask-image: radial-gradient(70% 55% at 50% 20%, #000 10%, transparent 75%);
+    opacity: .45;
+  }
+  @keyframes drift { to { transform: translate3d(3%, 4%, 0) scale(1.06); } }
+
+  /* ---- Header ---- */
+  header.top {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(17, 15, 13, .72);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 800; letter-spacing: .2px; font-size: 1.1rem; }
+  .brand img { width: 34px; height: 34px; border-radius: 50%; box-shadow: 0 0 0 2px var(--chocolate), 0 0 18px var(--glow); }
+  .brand span b { color: var(--amber); }
+  .nav ul { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+  .nav ul a { color: var(--muted); text-decoration: none; padding: 8px 12px; border-radius: 10px; font-size: .95rem; transition: color .2s, background .2s; }
+  .nav ul a:hover { color: var(--text); background: var(--surface); }
+  .nav .cta-sm { color: #1a1208 !important; background: var(--amber) !important; font-weight: 700; }
+  @media (max-width: 760px) { .nav ul li:not(:last-child) { display: none; } }
+
+  /* ---- Hero ---- */
+  .hero { padding: clamp(56px, 9vw, 112px) 0 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 48px; align-items: center; }
+  @media (max-width: 900px) { .hero { grid-template-columns: minmax(0, 1fr); text-align: center; } .hero .actions, .hero .meta { justify-content: center; } }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid var(--line-strong); background: rgba(224,160,96,.08);
+    color: var(--tan); font-size: .85rem; font-weight: 600; letter-spacing: .3px;
+  }
+  .eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px var(--amber); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  h1 { font-size: clamp(2.9rem, 7.5vw, 5.4rem); line-height: 1.02; letter-spacing: -2px; margin: 20px 0 12px; font-weight: 850; }
+  h1 .grad { background: linear-gradient(100deg, #f6d2a8 0%, var(--amber) 45%, var(--amber-deep) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .motto { font-size: clamp(1.15rem, 2.4vw, 1.5rem); color: var(--tan); margin: 0 0 18px; font-weight: 600; }
+  .lead { color: var(--muted); font-size: 1.08rem; max-width: 56ch; margin: 0 0 30px; }
+  @media (max-width: 900px) { .lead { margin-inline: auto; } }
+  .actions { display: flex; gap: 14px; flex-wrap: wrap; }
+  .meta { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 22px; color: var(--muted); font-size: .9rem; }
+  .meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .meta svg { width: 16px; height: 16px; color: var(--amber); }
+
+  .btn {
+    --b: var(--surface-2);
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 14px 24px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--b); color: var(--text); text-decoration: none;
+    font: 700 1rem/1 var(--sans); cursor: pointer;
+    transition: transform .2s ease, box-shadow .25s ease, background .2s, border-color .2s;
+  }
+  .btn:hover { transform: translateY(-2px); border-color: var(--line-strong); color: var(--text); }
+  .btn svg { width: 20px; height: 20px; flex: none; }
+  .btn-primary {
+    background: linear-gradient(135deg, #f0b67a, var(--amber) 40%, var(--amber-deep));
+    color: #1a1208; border: 0;
+    box-shadow: 0 10px 30px -8px rgba(201,125,62,.7), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn-primary:hover { color: #1a1208; box-shadow: 0 16px 44px -8px rgba(224,160,96,.85), inset 0 1px 0 rgba(255,255,255,.35); }
+  .btn-lg { padding: 18px 30px; font-size: 1.1rem; border-radius: 16px; }
+  .btn[aria-disabled="true"] { opacity: .55; pointer-events: none; filter: grayscale(.6); }
+
+  /* Hero visual: the real SpeedyOS badge in a glowing orbit */
+  .orbit { position: relative; width: min(440px, 82vw); aspect-ratio: 1; margin-inline: auto; }
+  .hero > .orbit { overflow: clip; overflow-clip-margin: 40px; }
+  @media (max-width: 520px) { .hero > .orbit { overflow-clip-margin: 8px; } }
+  .orbit .halo { position: absolute; inset: 6%; border-radius: 50%; background: radial-gradient(circle, rgba(224,160,96,.55), rgba(201,125,62,.12) 55%, transparent 70%); filter: blur(28px); animation: breathe 6s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.08); opacity: .8; } }
+  .orbit .ring { position: absolute; border-radius: 50%; border: 1px dashed rgba(224,160,96,.35); }
+  .orbit .r1 { inset: 0; animation: spin 60s linear infinite; }
+  .orbit .r2 { inset: 9%; border-style: solid; border-color: rgba(237,229,220,.08); }
+  .orbit .paw { position: absolute; width: 30px; height: 30px; color: var(--amber); top: -15px; left: calc(50% - 15px); filter: drop-shadow(0 0 8px var(--glow)); }
+  .orbit .paw.p2 { top: auto; bottom: -15px; transform: rotate(180deg); }
+  .orbit .badge { position: absolute; inset: 17%; border-radius: 50%; box-shadow: 0 0 0 1px rgba(237,229,220,.08), 0 30px 80px -20px rgba(0,0,0,.8), 0 0 60px rgba(224,160,96,.35); animation: float 7s ease-in-out infinite; }
+  .orbit .badge img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes float { 50% { transform: translateY(-10px); } }
+  .chip { position: absolute; padding: 8px 12px; border-radius: 12px; background: rgba(34,30,26,.85); border: 1px solid var(--line-strong); font: 600 .8rem/1 var(--mono); color: var(--tan); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); white-space: nowrap; box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); }
+  .chip.c1 { left: -4%; top: 22%; } .chip.c2 { right: -6%; top: 48%; } .chip.c3 { left: 6%; bottom: 10%; }
+  @media (max-width: 520px) { .chip { display: none; } }
+
+  /* ---- Sections ---- */
+  section { padding: 84px 0; scroll-margin-top: 64px; }
+  .sec-head { max-width: 680px; margin-bottom: 40px; }
+  .sec-head.center { margin-inline: auto; text-align: center; }
+  .kicker { color: var(--amber); font: 700 .8rem/1 var(--mono); letter-spacing: 2px; text-transform: uppercase; }
+  h2 { font-size: clamp(1.9rem, 4vw, 2.8rem); letter-spacing: -1px; line-height: 1.1; margin: 12px 0 14px; }
+  .sec-head p { color: var(--muted); margin: 0; font-size: 1.05rem; }
+
+  .card {
+    background: linear-gradient(180deg, rgba(42,37,32,.85), rgba(26,24,22,.85));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: 0 20px 60px -30px rgba(0,0,0,.8);
+  }
+
+  /* Status note */
+  .notice { display: flex; gap: 14px; align-items: flex-start; padding: 18px 22px; border-radius: 14px; border: 1px solid var(--line-strong); background: rgba(224,160,96,.07); color: var(--muted); font-size: .96rem; }
+  .notice svg { width: 22px; height: 22px; flex: none; color: var(--amber); margin-top: 2px; }
+  .notice strong { color: var(--text); }
+
+  /* ---- Download ---- */
+  .dl { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); overflow: hidden; position: relative; }
+  .dl::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; background: linear-gradient(130deg, rgba(224,160,96,.7), transparent 35%, transparent 65%, rgba(201,125,62,.6)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+  @media (max-width: 860px) { .dl { grid-template-columns: minmax(0, 1fr); } }
+  .dl-main { padding: clamp(26px, 4vw, 44px); }
+  .dl-side { padding: clamp(26px, 4vw, 44px); background: rgba(17,15,13,.55); border-left: 1px solid var(--line); }
+  @media (max-width: 860px) { .dl-side { border-left: 0; border-top: 1px solid var(--line); } }
+  .dl h3 { margin: 0 0 6px; font-size: 1.5rem; }
+  .dl .sub { color: var(--muted); margin: 0 0 26px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 28px; }
+  .facts div { padding: 14px 16px; border-radius: 12px; background: rgba(17,15,13,.5); border: 1px solid var(--line); }
+  .facts dt { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+  .facts dd { margin: 4px 0 0; font-weight: 700; word-break: break-word; }
+  .file-name { font-family: var(--mono); font-size: .92rem; color: var(--tan); word-break: break-all; }
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); margin-top: 16px; }
+  .status .ok { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .status.pending .ok { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+
+  .label { display: block; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; margin-bottom: 8px; }
+  .hash { display: flex; align-items: stretch; gap: 0; border-radius: 12px; border: 1px solid var(--line); background: #0d0b0a; overflow: hidden; }
+  .hash code { flex: 1; padding: 12px 14px; font-size: .82rem; color: var(--tan); word-break: break-all; line-height: 1.5; }
+  .copy { flex: none; border: 0; border-left: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 0 16px; cursor: pointer; font: 600 .85rem var(--sans); display: inline-flex; align-items: center; gap: 6px; transition: background .2s, color .2s; }
+  .copy:hover { background: var(--surface-2); color: var(--amber); }
+  .copy svg { width: 16px; height: 16px; }
+  .copy.done { color: var(--ok); }
+  .verify { margin-top: 20px; }
+  .dl-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+  .dl-buttons .btn small { font-weight: 600; opacity: .75; font-size: .85em; }
+  .join { margin-top: 22px; }
+  .join-note { color: var(--muted); font-size: .93rem; margin: 0 0 14px; }
+  .join-note strong { color: var(--text); }
+  .side-links { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; font-size: .93rem; }
+
+  /* ---- Features ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 18px; }
+  .feature { padding: 26px; transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; position: relative; overflow: hidden; }
+  .feature::after { content: ""; position: absolute; width: 220px; height: 220px; right: -90px; top: -90px; border-radius: 50%; background: radial-gradient(circle, rgba(224,160,96,.18), transparent 70%); opacity: 0; transition: opacity .3s; }
+  .feature:hover { transform: translateY(-4px); border-color: var(--line-strong); box-shadow: 0 24px 60px -28px rgba(201,125,62,.45); }
+  .feature:hover::after { opacity: 1; }
+  .ico { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(140deg, rgba(224,160,96,.22), rgba(138,90,50,.15)); border: 1px solid var(--line-strong); color: var(--amber); margin-bottom: 16px; }
+  .ico svg { width: 24px; height: 24px; }
+  .feature h3 { margin: 0 0 8px; font-size: 1.12rem; }
+  .feature p { margin: 0; color: var(--muted); font-size: .96rem; }
+  .feature code { font-size: .86em; color: var(--tan); background: rgba(17,15,13,.6); padding: 1px 6px; border-radius: 6px; }
+
+  /* ---- Showcase ---- */
+  .showcase { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: 22px; align-items: stretch; }
+  @media (max-width: 900px) { .showcase { grid-template-columns: minmax(0, 1fr); } }
+  .window { overflow: hidden; }
+  .window .bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: rgba(17,15,13,.6); font-size: .82rem; color: var(--muted); }
+  .window .bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a332c; display: inline-block; }
+  .window .bar i:first-child { background: var(--amber-deep); }
+  .window .bar span { margin-left: 8px; font-family: var(--mono); }
+  .window figure { margin: 0; }
+  .window figcaption { padding: 12px 16px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); }
+  .term pre { margin: 0; padding: 20px; font-size: .88rem; line-height: 1.7; color: var(--text); overflow-x: auto; white-space: pre; }
+  .term .p { color: var(--amber); }
+  .term .c { color: #8a7d70; }
+  .term .h { color: var(--tan); font-weight: 700; }
+  .caret { display: inline-block; width: .6em; height: 1.1em; background: var(--amber); vertical-align: text-bottom; animation: blink 1.1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+
+  /* ---- Steps ---- */
+  .steps { counter-reset: step; display: grid; gap: 16px; }
+  .step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; padding: 24px; }
+  .step::before { counter-increment: step; content: counter(step); width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 800 1.1rem var(--mono); color: #1a1208; background: linear-gradient(135deg, #f0b67a, var(--amber-deep)); box-shadow: 0 0 22px rgba(224,160,96,.45); }
+  .step h3 { margin: 6px 0 6px; font-size: 1.15rem; }
+  .step p { margin: 0 0 10px; color: var(--muted); }
+  .step pre { margin: 10px 0 0; padding: 14px 16px; background: #0d0b0a; border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; font-size: .86rem; color: var(--tan); }
+  .step pre .c { color: #8a7d70; }
+  .warn { color: #f2bd85; font-weight: 600; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 9px 18px; font: 600 .95rem var(--sans); cursor: pointer; transition: all .2s; }
+  .tab:hover { color: var(--text); border-color: var(--line-strong); }
+  .tab[aria-selected="true"] { background: var(--amber); color: #1a1208; border-color: transparent; }
+  [role="tabpanel"][hidden] { display: none; }
+
+  /* ---- Requirements ---- */
+  .req { width: 100%; border-collapse: collapse; overflow: hidden; }
+  .req-wrap { overflow-x: auto; padding: 6px; }
+  .req th, .req td { text-align: left; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .req thead th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: 1.2px; }
+  .req tbody th { color: var(--tan); font-weight: 700; }
+  @media (max-width: 560px) { .req th, .req td { padding: 12px 10px; font-size: .92rem; } }
+  .req tr:last-child th, .req tr:last-child td { border-bottom: 0; }
+  .fine { color: var(--muted); font-size: .9rem; margin-top: 14px; }
+
+  /* ---- Footer ---- */
+  footer { border-top: 1px solid var(--line); padding: 48px 0 40px; margin-top: 40px; background: rgba(13,11,10,.7); }
+  .foot { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+  .foot p { color: var(--muted); margin: 10px 0 0; max-width: 40ch; font-size: .93rem; }
+  .foot h4 { margin: 0 0 12px; font-size: .8rem; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); }
+  .foot ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: .95rem; }
+  .foot ul a { color: var(--text); text-decoration: none; }
+  .foot ul a:hover { color: var(--amber); }
+  .copyline { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--line); color: #8a7d70; font-size: .85rem; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  /* ---- Scroll reveal ---- */
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  .no-js .reveal { opacity: 1; transform: none; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body class="no-js">
+<a class="skip" href="#main">Skip to content</a>
+<div class="sky" aria-hidden="true"></div>
+
+<!-- Paw print symbol, reused across the page -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="paw" viewBox="0 0 32 32"><g fill="currentColor"><ellipse cx="16" cy="22" rx="7.5" ry="6.5"/><ellipse cx="6.5" cy="13.5" rx="3.2" ry="4"/><ellipse cx="12" cy="7.5" rx="3.2" ry="4.2"/><ellipse cx="20" cy="7.5" rx="3.2" ry="4.2"/><ellipse cx="25.5" cy="13.5" rx="3.2" ry="4"/></g></symbol>
+  <symbol id="dl" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0-5-5m5 5 5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></g></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></symbol>
+</svg>
+
+<header class="top">
+  <nav class="wrap nav" aria-label="Main">
+    <a class="brand" href="#top" aria-label="SpeedyOS home">
+      <img src="assets/speedyos-icon-64.png" alt="" width="34" height="34">
+      <span>Speedy<b>OS</b></span>
+    </a>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#tour">Tour</a></li>
+      <li><a href="#install">Get started</a></li>
+      <li><a href="#requirements">Requirements</a></li>
+      <li><a href="https://github.com/playthegame292/speedyos">GitHub</a></li>
+      <li><a class="cta-sm" href="#download">Download</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="main">
+  <!-- ================= HERO ================= -->
+  <div class="wrap hero" id="top">
+    <div>
+      <span class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-release="codename-line">2026.10 “Beagle Run” · early development</span></span>
+      <h1><span class="grad">SpeedyOS</span></h1>
+      <p class="motto">Fast Paws. Arch Power.</p>
+      <p class="lead">A fast, friendly Arch Linux distribution with the KDE Plasma 6 desktop, a graphical installer, automatic Btrfs snapshots and the easy-to-remember <code>speedy</code> command. Named after Speedy, a very good beagle.</p>
+      <div class="actions">
+        <a class="btn btn-primary btn-lg" href="#download"><svg aria-hidden="true"><use href="#dl"/></svg>Download SpeedyOS</a>
+        <a class="btn btn-lg" href="https://github.com/playthegame292/speedyos">View on GitHub</a>
+      </div>
+      <div class="meta">
+        <span><svg aria-hidden="true"><use href="#paw"/></svg>x86_64</span>
+        <span><svg aria-hidden="true"><use href="#paw"/></svg>Live USB · try before installing</span>
+        <span><svg aria-hidden="true"><use href="#paw"/></svg>MIT-licensed project</span>
+      </div>
+    </div>
+    <div class="orbit" aria-hidden="true">
+      <div class="halo"></div>
+      <div class="ring r1"><svg class="paw"><use href="#paw"/></svg><svg class="paw p2"><use href="#paw"/></svg></div>
+      <div class="ring r2"></div>
+      <div class="badge"><img src="assets/speedyos-badge.png" alt="" width="1024" height="1024"></div>
+      <span class="chip c1">$ speedy dance</span>
+      <span class="chip c2">KDE Plasma 6</span>
+      <span class="chip c3">btrfs + snapper</span>
+    </div>
+  </div>
+
+  <!-- ================= DOWNLOAD ================= -->
+  <section id="download">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="kicker">Download</span>
+        <h2>Get the live ISO</h2>
+        <p>One image for trying and installing. Boot it from a USB stick, explore the live desktop, then install when you're ready.</p>
+      </div>
+
+      <div class="card dl reveal">
+        <div class="dl-main">
+          <h3>SpeedyOS <span data-release="version">2026.10</span> “<span data-release="codename">Beagle Run</span>”</h3>
+          <p class="sub">Live / install image for 64-bit PCs. UEFI and legacy BIOS boot entries.</p>
+          <dl class="facts">
+            <div><dt>File</dt><dd class="file-name" data-release="file">speedyos-2026.10.14-x86_64.iso</dd></div>
+            <div><dt>Size</dt><dd data-release="size">2.74 GiB</dd></div>
+            <div><dt>Built</dt><dd data-release="date">2026-10-14</dd></div>
+            <div><dt>Architecture</dt><dd>x86_64</dd></div>
+          </dl>
+          <div id="dl-buttons" class="dl-buttons">
+            <noscript><a class="btn btn-primary btn-lg" href="https://github.com/playthegame292/speedyos/releases/latest">Download from GitHub Releases</a></noscript>
+          </div>
+          <div id="dl-status" class="status" role="status"><span class="ok" aria-hidden="true"></span><span></span></div>
+          <div id="join" class="join" hidden>
+            <p class="join-note">GitHub limits release files to 2 GiB, so the ISO comes in <strong data-release="part-count">2</strong> parts. Download all of them into one folder, then join them:</p>
+            <span class="label">Linux / macOS</span>
+            <div class="hash"><code id="join-unix"></code><button class="copy" type="button" data-copy="join-unix" aria-label="Copy Linux and macOS join command"><svg aria-hidden="true"><use href="#copy"/></svg><span>Copy</span></button></div>
+            <span class="label" style="margin-top:12px">Windows (Command Prompt)</span>
+            <div class="hash"><code id="join-win"></code><button class="copy" type="button" data-copy="join-win" aria-label="Copy Windows join command"><svg aria-hidden="true"><use href="#copy"/></svg><span>Copy</span></button></div>
+          </div>
+        </div>
+        <div class="dl-side">
+          <span class="label" id="sha-label">SHA-256 checksum</span>
+          <div class="hash">
+            <code id="sha" aria-labelledby="sha-label" data-release="sha256">Not published yet</code>
+            <button class="copy" type="button" data-copy="sha" aria-label="Copy SHA-256 checksum"><svg aria-hidden="true"><use href="#copy"/></svg><span>Copy</span></button>
+          </div>
+          <div class="verify">
+            <span class="label">Verify the joined ISO</span>
+            <div class="hash">
+              <code id="verify-cmd">sha256sum -c speedyos-2026.10.14-x86_64.iso.sha256</code>
+              <button class="copy" type="button" data-copy="verify-cmd" aria-label="Copy verify command"><svg aria-hidden="true"><use href="#copy"/></svg><span>Copy</span></button>
+            </div>
+          </div>
+          <div class="side-links">
+            <a id="sha-file" href="#">Download the .sha256 file</a>
+            <a id="release-page" href="https://github.com/playthegame292/speedyos/releases">All releases on GitHub</a>
+            <a href="https://github.com/playthegame292/speedyos/blob/main/docs/INSTALLING.md">Full installation guide</a>
+            <a href="https://github.com/playthegame292/speedyos/blob/main/CHANGELOG.md">Release notes (changelog)</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="notice reveal" style="margin-top:22px">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div><strong>Early development.</strong> SpeedyOS has been booted and installed in QEMU/KVM virtual machines (UEFI), but has <strong>not yet been tested on real hardware</strong>, with legacy BIOS installs, or with Secure Boot (unsupported — turn it off). Try it in a VM or on a spare disk first and back up your data.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FEATURES ================= -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head center reveal">
+        <span class="kicker">Features</span>
+        <h2>Arch underneath. Friendly on top.</h2>
+        <p>Everything here ships in the current ISO.</p>
+      </div>
+      <div class="grid">
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 2 3 21c3-1.6 6-2.4 9-2.4s6 .8 9 2.4L12 2z"/></svg></div>
+          <h3>Pure Arch Linux base</h3>
+          <p>Rolling release with the official Arch repositories. SpeedyOS adds defaults, not a fork — everything on the ArchWiki applies.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></g></svg></div>
+          <h3>KDE Plasma 6 on Wayland</h3>
+          <p>A modern desktop with SpeedyOS's own look-and-feel, warm chocolate-and-amber color scheme, wallpapers and Konsole theme.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><rect x="3" y="15" width="18" height="6" rx="2"/></g></svg></div>
+          <h3>Try, then install</h3>
+          <p>The live session opens a “Try or Install” screen. Explore without touching your disk, then launch the Calamares graphical installer — nothing is preselected and every disk change is shown before it happens.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></g></svg></div>
+          <h3>Btrfs snapshots &amp; undo</h3>
+          <p>Btrfs by default with snapper and snap-pac: a snapshot before and after every package change, bootable from the GRUB menu. Roll back with <code>speedy undo &lt;n&gt;</code>.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-5-6-5M12 19h8"/></g></svg></div>
+          <h3>The <code>speedy</code> command</h3>
+          <p>Memorable commands for everyday tasks — <code>update</code>, <code>install</code>, <code>search</code>, <code>doctor</code>, <code>clean</code>. It always shows the exact command it runs and confirms destructive actions.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></g></svg></div>
+          <h3>AUR ready</h3>
+          <p><code>yay</code> and <code>base-devel</code> are preinstalled. <code>speedy install</code> falls back to the AUR — with a clear warning — and <code>speedy update</code> updates AUR packages too.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></g></svg></div>
+          <h3>Drivers &amp; updates, handled</h3>
+          <p><code>speedy drivers</code> detects your GPU and recommends the right NVIDIA, AMD or Intel drivers. A background timer notifies you when updates are available.</p>
+        </article>
+        <article class="card feature reveal">
+          <div class="ico"><svg aria-hidden="true"><use href="#paw"/></svg></div>
+          <h3>Beagle all the way down</h3>
+          <p>Paw-print Plymouth boot splash, a themed GRUB menu, a Welcome Center for new users, and a few tricks: try <code>speedy dance</code>.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TOUR ================= -->
+  <section id="tour">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="kicker">Tour</span>
+        <h2>See it running</h2>
+        <p>A real screenshot of this ISO booting in a virtual machine, and real output from its terminal.</p>
+      </div>
+      <div class="showcase">
+        <div class="card window reveal">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>SpeedyOS live session</span></div>
+          <figure>
+            <img src="assets/live-try-install.png" alt="The SpeedyOS live session welcome screen: the Speedy beagle badge, the title Welcome to SpeedyOS, the motto Fast Paws. Arch Power., and two buttons, Try SpeedyOS and Install SpeedyOS." width="1280" height="800" loading="lazy">
+            <figcaption>“Try or Install” screen, first thing you see after booting the ISO (QEMU, UEFI).</figcaption>
+          </figure>
+        </div>
+        <div class="card window term reveal">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>speedyuser@speedyos: ~</span></div>
+<pre><span class="p">$</span> speedy version
+<span class="h">speedy 0.4.0</span>
+SpeedyOS 2026.10 "Beagle Run"
+Base: Arch Linux
+
+<span class="p">$</span> speedy help      <span class="c"># all commands</span>
+<span class="p">$</span> speedy update    <span class="c"># Arch + AUR</span>
+<span class="p">$</span> speedy install gimp
+<span class="p">$</span> speedy search editor
+<span class="p">$</span> speedy doctor    <span class="c"># health check</span>
+<span class="p">$</span> speedy drivers   <span class="c"># GPU advice</span>
+<span class="p">$</span> speedy snapshots
+<span class="p">$</span> speedy undo 4
+<span class="p">$</span> speedy dance     <span class="c"># very important</span>
+<span class="p">$</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+      </div>
+      <p class="fine reveal">Complete reference: <a href="https://github.com/playthegame292/speedyos/blob/main/docs/SPEEDY_COMMANDS.md">docs/SPEEDY_COMMANDS.md</a></p>
+    </div>
+  </section>
+
+  <!-- ================= GET STARTED ================= -->
+  <section id="install">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="kicker">Get started</span>
+        <h2>From download to desktop</h2>
+        <p>Install from the ISO, or build the ISO yourself from source.</p>
+      </div>
+
+      <div class="tabs reveal" role="tablist" aria-label="Getting started">
+        <button class="tab" role="tab" id="tab-use" aria-controls="panel-use" aria-selected="true">Install SpeedyOS</button>
+        <button class="tab" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="false" tabindex="-1">Build the ISO</button>
+      </div>
+
+      <div id="panel-use" role="tabpanel" aria-labelledby="tab-use" tabindex="0">
+        <ol class="steps" style="list-style:none;padding:0;margin:0">
+          <li class="card step reveal"><div>
+            <h3>Download and verify</h3>
+            <p>Download every ISO part and the <code>.sha256</code> file above into one folder, join the parts, then check the result:</p>
+            <pre>cat speedyos-*.iso.part* &gt; speedyos.iso   <span class="c"># Windows: see the download box</span>
+sha256sum speedyos.iso                    <span class="c"># must match the checksum above</span></pre>
+          </div></li>
+          <li class="card step reveal"><div>
+            <h3>Write it to a USB stick</h3>
+            <p><span class="warn">Everything on the stick is erased — double-check the device name.</span> Ventoy or GNOME Disks also work.</p>
+            <pre>lsblk                    <span class="c"># find the stick, e.g. /dev/sdX</span>
+sudo dd if=speedyos-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</pre>
+          </div></li>
+          <li class="card step reveal"><div>
+            <h3>Boot the live session</h3>
+            <p>Boot from the stick (often F12, F11, Esc or F8 at power-on; Secure Boot off) and choose <strong>SpeedyOS live</strong>. You're logged in automatically and can pick <em>Try SpeedyOS</em> or <em>Install SpeedyOS</em>.</p>
+          </div></li>
+          <li class="card step reveal"><div>
+            <h3>Install</h3>
+            <p>The installer walks through language, location, keyboard, partitions (Btrfs by default, optional LUKS encryption), and your user account. Nothing is written until you confirm the summary. Then restart, log in, and run:</p>
+            <pre>speedy update     <span class="c"># full upgrade</span>
+speedy drivers    <span class="c"># recommended graphics drivers</span>
+speedy doctor     <span class="c"># health check</span></pre>
+          </div></li>
+        </ol>
+        <p class="fine reveal">Prefer a virtual machine first? With the <a href="https://github.com/playthegame292/speedyos">source</a> checked out: <code>./scripts/run-vm.sh live</code> boots the ISO in QEMU. Details in <a href="https://github.com/playthegame292/speedyos/blob/main/docs/TESTING.md">docs/TESTING.md</a>.</p>
+      </div>
+
+      <div id="panel-build" role="tabpanel" aria-labelledby="tab-build" tabindex="0" hidden>
+        <ol class="steps" style="list-style:none;padding:0;margin:0">
+          <li class="card step"><div>
+            <h3>Get the source and build tools (Arch Linux host)</h3>
+            <p>About 15 GB free disk and 8 GB RAM recommended. Your user needs entries in <code>/etc/subuid</code> and <code>/etc/subgid</code>.</p>
+            <pre>git clone https://github.com/playthegame292/speedyos.git && cd speedyos
+sudo pacman -S --needed archiso arch-install-scripts squashfs-tools \
+    libisoburn dosfstools e2fsprogs mtools erofs-utils grub \
+    qemu-desktop edk2-ovmf python-pillow python-yaml
+./scripts/check-dependencies.sh</pre>
+          </div></li>
+          <li class="card step"><div>
+            <h3>Build the SpeedyOS packages</h3>
+            <p>Builds <code>speedy-cli</code>, <code>speedy-welcome</code>, <code>speedy-branding</code> and <code>yay-bin</code> into the local <code>[speedyos]</code> repository.</p>
+            <pre>./scripts/build-packages.sh</pre>
+          </div></li>
+          <li class="card step"><div>
+            <h3>Build the ISO — no root required</h3>
+            <p>archiso runs inside a user namespace, so nothing on the host changes. The ISO and its <code>.sha256</code> land in <code>out/</code>.</p>
+            <pre>./scripts/build-iso.sh          <span class="c"># release build (xz), 30–60 min</span>
+./scripts/build-iso.sh --fast   <span class="c"># development build (zstd)</span></pre>
+          </div></li>
+        </ol>
+        <p class="fine">Troubleshooting and internals: <a href="https://github.com/playthegame292/speedyos/blob/main/docs/BUILDING.md">docs/BUILDING.md</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= REQUIREMENTS ================= -->
+  <section id="requirements">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="kicker">System requirements</span>
+        <h2>What you need</h2>
+        <p>The minimums are what the installer checks before it lets you continue.</p>
+      </div>
+      <div class="card req-wrap reveal">
+        <table class="req">
+          <caption class="sr-only">SpeedyOS system requirements</caption>
+          <thead><tr><th scope="col">Component</th><th scope="col">Minimum</th><th scope="col">Recommended</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">CPU</th><td>64-bit x86 (x86_64)</td><td>4 cores</td></tr>
+            <tr><th scope="row">Memory</th><td>2 GB</td><td>4 GB or more</td></tr>
+            <tr><th scope="row">Disk</th><td>15 GB</td><td>30 GB or more</td></tr>
+            <tr><th scope="row">Firmware</th><td>UEFI or legacy BIOS</td><td>UEFI, Secure Boot off</td></tr>
+            <tr><th scope="row">Boot medium</th><td colspan="2">USB stick of at least 4 GB (the ISO is <span data-release="size-short">2.7 GiB</span>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="#top"><img src="assets/speedyos-icon-64.png" alt="" width="34" height="34"><span>Speedy<b>OS</b></span></a>
+        <p>Fast Paws. Arch Power. A personal project by bundle223, inspired by Speedy the beagle. Contributions, suggestions and feedback are welcome.</p>
+      </div>
+      <nav aria-label="Documentation">
+        <h4>Documentation</h4>
+        <ul>
+          <li><a href="https://github.com/playthegame292/speedyos#readme">README</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/blob/main/docs/INSTALLING.md">Installing</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/blob/main/docs/BUILDING.md">Building the ISO</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/blob/main/docs/SPEEDY_COMMANDS.md">Speedy commands</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/blob/main/docs/TESTING.md">Testing</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Project">
+        <h4>Project</h4>
+        <ul>
+          <li><a href="#download">Download</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos">Source code on GitHub</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/issues">Report a bug</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/playthegame292/speedyos/blob/main/LICENSE">License (MIT)</a></li>
+          <li><a href="https://wiki.archlinux.org/">ArchWiki</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="copyline">
+      <span>© 2026 bundle223 — SpeedyOS Project. MIT License.</span>
+      <span>SpeedyOS is built on Arch Linux; it is not affiliated with or endorsed by Arch Linux.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* =====================================================================
+     RELEASE CONFIG — the only place to edit for a new ISO.
+     - baseUrl: folder the files are downloaded from (a GitHub release's
+                download URL, ending in "/"). Set to "" if nothing is
+                published yet: an honest "not published" status is shown.
+     - parts:   the files to download, in order. One entry = a normal
+                single-file download; several = split ISO (GitHub release
+                files must be under 2 GiB) and join instructions appear.
+     - bytes / sha256: of the complete ISO (from out/<file>.sha256).
+     ===================================================================== */
+  const RELEASE = {
+    version:  "2026.10",
+    codename: "Beagle Run",
+    date:     "2026-10-14",
+    file:     "speedyos-2026.10.14-x86_64.iso",
+    bytes:    0,
+    sha256:   "",
+    baseUrl:  "",
+    parts: []
+  };
+
+  document.body.classList.remove("no-js");
+
+  (function applyRelease() {
+    const set = (key, text) => document.querySelectorAll('[data-release="' + key + '"]').forEach(el => { el.textContent = text; });
+    const gib = b => (b / 1024 ** 3).toFixed(2) + " GiB";
+    set("version", RELEASE.version);
+    set("codename", RELEASE.codename);
+    set("codename-line", RELEASE.version + " “" + RELEASE.codename + "” · early development");
+    set("date", RELEASE.date);
+    set("file", RELEASE.file);
+    set("size", RELEASE.bytes ? gib(RELEASE.bytes) + " (" + (RELEASE.bytes / 1e9).toFixed(2) + " GB)" : "About 2.7 GiB");
+    set("size-short", RELEASE.bytes ? (RELEASE.bytes / 1024 ** 3).toFixed(1) + " GiB" : "about 2.7 GiB");
+    set("sha256", RELEASE.sha256 || "Not published yet");
+    set("part-count", String(RELEASE.parts.length));
+    document.getElementById("verify-cmd").textContent = "sha256sum -c " + RELEASE.file + ".sha256";
+
+    const box = document.getElementById("dl-buttons");
+    const status = document.getElementById("dl-status");
+    const shaFile = document.getElementById("sha-file");
+    if (!RELEASE.baseUrl || !RELEASE.parts.length) {
+      box.innerHTML = '<span class="btn btn-primary btn-lg" aria-disabled="true">ISO not published yet</span>';
+      status.classList.add("pending");
+      status.lastElementChild.textContent = "The download link will appear here once the ISO is published.";
+      shaFile.hidden = true;
+      return;
+    }
+    const icon = '<svg aria-hidden="true"><use href="#dl"/></svg>';
+    const split = RELEASE.parts.length > 1;
+    box.innerHTML = "";
+    RELEASE.parts.forEach((p, i) => {
+      const a = document.createElement("a");
+      a.className = "btn btn-primary btn-lg";
+      a.href = RELEASE.baseUrl + p.name;
+      a.innerHTML = icon + "<span>" + (split ? "Download part " + (i + 1) : "Download SpeedyOS") + " <small>" + gib(p.bytes) + "</small></span>";
+      a.setAttribute("aria-label", "Download " + p.name + ", " + gib(p.bytes));
+      box.appendChild(a);
+    });
+    shaFile.href = RELEASE.baseUrl + RELEASE.file + ".sha256";
+    status.lastElementChild.textContent = split
+      ? "ISO available in " + RELEASE.parts.length + " parts · join them after downloading"
+      : "ISO available · verify the checksum after downloading";
+    if (split) {
+      const names = RELEASE.parts.map(p => p.name);
+      document.getElementById("join-unix").textContent = "cat " + names.join(" ") + " > " + RELEASE.file;
+      document.getElementById("join-win").textContent = "copy /b " + names.join(" + ") + " " + RELEASE.file;
+      document.getElementById("join").hidden = false;
+    }
+  })();
+
+  // Copy buttons
+  document.querySelectorAll("[data-copy]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const text = document.getElementById(btn.dataset.copy).textContent.trim();
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; }
+      catch (e) {
+        const ta = Object.assign(document.createElement("textarea"), { value: text });
+        ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        try { ok = document.execCommand("copy"); } catch (_) {}
+        ta.remove();
+      }
+      const label = btn.querySelector("span"), icon = btn.querySelector("use");
+      label.textContent = ok ? "Copied" : "Press Ctrl+C";
+      icon.setAttribute("href", ok ? "#check" : "#copy");
+      btn.classList.toggle("done", ok);
+      if (!ok) { const r = document.createRange(); r.selectNodeContents(document.getElementById(btn.dataset.copy)); getSelection().removeAllRanges(); getSelection().addRange(r); }
+      clearTimeout(btn._t);
+      btn._t = setTimeout(() => { label.textContent = "Copy"; icon.setAttribute("href", "#copy"); btn.classList.remove("done"); }, 2000);
+    });
+  });
+
+  // Tabs (arrow-key navigation per WAI-ARIA)
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function selectTab(tab) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute("aria-selected", on);
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+    tab.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => selectTab(t));
+    t.addEventListener("keydown", e => {
+      const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (d) { e.preventDefault(); selectTab(tabs[(i + d + tabs.length) % tabs.length]); }
+      if (e.key === "Home") { e.preventDefault(); selectTab(tabs[0]); }
+      if (e.key === "End") { e.preventDefault(); selectTab(tabs[tabs.length - 1]); }
+    });
+  });
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll(".reveal");
+  if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const io = new IntersectionObserver(entries => entries.forEach(en => {
+      if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+    }), { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+    reveals.forEach(el => io.observe(el));
+  } else {
+    reveals.forEach(el => el.classList.add("in"));
+  }
+</script>
+</body>
+</html>

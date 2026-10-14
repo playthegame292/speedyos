@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QFrame, QScrollArea, QGridLayout, QTextBrowser, QMessageBox, QCheckBox
 )
 
-DOCS_URL = "https://github.com/sebytremblay/speedyos/tree/main/docs"
+DOCS_URL = "https://github.com/playthegame292/speedyos/tree/main/docs"
 ARCH_WIKI_URL = "https://wiki.archlinux.org/"
 AUTOSTART_NAME = "speedyos-welcome.desktop"
 LINK_CSS = "a { color: #e0a060; }"
@@ -593,7 +593,7 @@ class SpeedyWelcomeApp(QMainWindow):
             <li><b>Modern Audio & Networking:</b> PipeWire sound server and NetworkManager out of the box.</li>
         </ul>
         <hr/>
-        <p>Project repository: <a href="https://github.com/sebytremblay/speedyos">https://github.com/sebytremblay/speedyos</a></p>
+        <p>Project repository: <a href="https://github.com/playthegame292/speedyos">https://github.com/playthegame292/speedyos</a></p>
         """)
         layout.addWidget(browser)
         return page
