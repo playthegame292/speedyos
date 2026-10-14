@@ -1,0 +1,4 @@
+# Live session only: the live user has no password, so never auto-lock.
+[Daemon]
+Autolock=false
+LockOnResume=false
